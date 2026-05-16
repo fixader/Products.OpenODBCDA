@@ -1,0 +1,78 @@
+<!--
+Copyright (c) 2026 Rune Ketil Fredriksen and contributors.
+SPDX-License-Identifier: MIT
+The MIT license permits use, copying, distribution, and modification,
+provided that copyright and permission notices are included.
+See LICENSE and NOTICE for details.
+Developed in collaboration with ChatGPT/Codex.
+-->
+<dtml-var manage_page_header>
+
+<dtml-with "_(management_view='Test')">
+  <dtml-var manage_tabs>
+</dtml-with>
+
+<main class="container-fluid">
+
+  <h2 class="zmi-form-title">Test OpenODBC DB Connector</h2>
+
+  <p class="form-text">
+    Status:
+    <dtml-if connected>
+      <span class="badge badge-success">connected</span>
+    <dtml-else>
+      <span class="badge badge-warning">closed</span>
+    </dtml-if>
+  </p>
+
+  <dtml-if connected>
+    <form action="manage_testForm" method="get" class="zmi-edit zmi-sql zmi-ace-brief">
+      <div class="form-group">
+        <textarea id="content" data-contenttype="sql"
+                  class="form-control zmi-zpt zmi-code col-sm-12"
+                  name="query:text" rows="8"><dtml-if query><dtml-var query><dtml-else>select 1 as one</dtml-if></textarea>
+      </div>
+
+      <div class="zmi-controls">
+        <input class="btn btn-primary" type="submit" name="QUERY_SUBMIT" value="Submit Query">
+      </div>
+    </form>
+
+    <dtml-if query>
+      <hr>
+      <h3 class="zmi-form-title">Query results</h3>
+      <dtml-let res="manage_test(query)">
+        <table class="table table-sm table-responsive table-striped table-hover table-bordered mb-3">
+          <thead>
+            <tr>
+              <dtml-in "res.names()">
+                <th>&dtml-sequence-item;</th>
+              </dtml-in>
+            </tr>
+          </thead>
+          <tbody>
+            <dtml-in "res">
+              <tr>
+                <dtml-let rec=sequence-item>
+                  <dtml-in "res.names()">
+                    <td><dtml-var "getattr(rec, _['sequence-item'])" html_quote></td>
+                  </dtml-in>
+                </dtml-let>
+              </tr>
+            </dtml-in>
+          </tbody>
+        </table>
+      </dtml-let>
+    </dtml-if>
+  <dtml-else>
+    <p class="form-text">Open the connection before running test queries.</p>
+    <div class="zmi-controls">
+      <form action="manage_open_connection" method="get">
+        <input class="btn btn-primary" type="submit" value="Open Connection">
+      </form>
+    </div>
+  </dtml-if>
+
+</main>
+
+<dtml-var manage_page_footer>

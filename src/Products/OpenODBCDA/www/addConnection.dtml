@@ -1,0 +1,136 @@
+<!--
+Copyright (c) 2026 Rune Ketil Fredriksen and contributors.
+SPDX-License-Identifier: MIT
+The MIT license permits use, copying, distribution, and modification,
+provided that copyright and permission notices are included.
+See LICENSE and NOTICE for details.
+Developed in collaboration with ChatGPT/Codex.
+-->
+<dtml-var manage_page_header>
+<dtml-var manage_tabs>
+
+<form action="manage_addOpenODBCConnection" method="post">
+  <table cellspacing="0" cellpadding="2" border="0" class="table table-sm">
+    <tr>
+      <th align="left">Id</th>
+      <td><input class="form-control" name="id" size="40"></td>
+    </tr>
+    <tr>
+      <th align="left">Title</th>
+      <td><input class="form-control" name="title" size="40"></td>
+    </tr>
+    <tr>
+      <th align="left">Driver</th>
+      <td>
+        <input class="form-control" name="driver" size="40">
+        <small class="form-text text-muted">Example: PostgreSQL Unicode</small>
+      </td>
+    </tr>
+    <tr>
+      <th align="left">Server</th>
+      <td><input class="form-control" name="server" size="40"></td>
+    </tr>
+    <tr>
+      <th align="left">Port</th>
+      <td><input class="form-control" name="port" size="12"></td>
+    </tr>
+    <tr>
+      <th align="left">Database</th>
+      <td><input class="form-control" name="database" size="40"></td>
+    </tr>
+    <tr>
+      <th align="left">User</th>
+      <td><input class="form-control" name="username" size="40"></td>
+    </tr>
+    <tr>
+      <th align="left">Password</th>
+      <td><input class="form-control" type="password" name="password" size="40"></td>
+    </tr>
+    <tr>
+      <th align="left">Extra options</th>
+      <td>
+        <textarea class="form-control" name="extra_options:text" cols="72" rows="3"></textarea>
+        <small class="form-text text-muted">Optional semicolon-separated ODBC options.</small>
+      </td>
+    </tr>
+    <tr>
+      <th align="left">Raw connection string</th>
+      <td>
+        <textarea class="form-control" name="connection_string:text" cols="72" rows="4"></textarea>
+        <label>
+          <input type="checkbox" name="use_raw_connection_string" value="1">
+          Use raw connection string instead of structured fields
+        </label>
+      </td>
+    </tr>
+    <tr>
+      <th align="left">Connection pooling</th>
+      <td>
+        <label>
+          <input type="checkbox" name="pool_enabled" value="1">
+          Enable per-connector connection pool
+        </label>
+        <br>
+        <label>
+          Pool size
+          <input class="form-control" type="number"
+                 name="pool_size:int" min="1" max="999" value="1">
+        </label>
+        <small class="form-text text-muted">
+          Keep this at 1 for most connector objects. Larger pools are mainly
+          useful for large databases with many simultaneous users hitting the
+          same connector. Many Zope folders with their own pools can create
+          many physical database sessions.
+        </small>
+      </td>
+    </tr>
+    <tr>
+      <th align="left">Compatibility result options</th>
+      <td>
+        <label>
+          Date/time result format
+          <select class="form-control" name="date_time_format">
+            <option value="python" selected>Python date/time objects</option>
+            <option value="zope">Zope DateTime objects</option>
+            <option value="iso">ISO strings</option>
+          </select>
+        </label>
+        <br>
+        <label>
+          <input type="checkbox" name="time_as_string" value="1">
+          Fetch TIME columns as strings
+        </label>
+        <br>
+        <label>
+          <input type="checkbox" name="null_as_empty_string" value="1">
+          Fetch NULL values as empty strings
+        </label>
+        <br>
+        <label>
+          <input type="checkbox" name="leave_scale0_floats_untouched" value="1" checked>
+          Leave scale 0 floats untouched
+        </label>
+        <small class="form-text text-muted">
+          These options are applied to result rows after the ODBC driver has
+          returned data. They are mainly for older Zope applications that expect
+          legacy adapter formatting.
+        </small>
+      </td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>
+        <label>
+          <input type="checkbox" name="check" value="1">
+          Connect immediately
+        </label>
+      </td>
+    </tr>
+    <tr>
+      <td></td>
+      <td><input type="submit" value="Add"></td>
+    </tr>
+  </table>
+</form>
+
+<dtml-var manage_page_footer>

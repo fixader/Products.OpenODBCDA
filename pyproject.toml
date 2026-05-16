@@ -1,0 +1,59 @@
+[tool.openodbcda.notice]
+copyright = "Copyright (c) 2026 Rune Ketil Fredriksen and contributors"
+spdx_license_identifier = "MIT"
+license_summary = "The MIT license permits use, copying, distribution, and modification, provided that copyright and permission notices are included. Read the full LICENSE file for details."
+collaboration = "Developed in collaboration with ChatGPT/Codex."
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Products.OpenODBCDA"
+dynamic = ["version"]
+description = "An open ODBC Database Adapter for Zope 5 and Zope 6."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Rune Ketil Fredriksen and contributors"}
+]
+dependencies = [
+    "Products.ZSQLMethods>=3.15",
+    "pyodbc>=5.0",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Zope",
+    "Framework :: Zope :: 5",
+    "Framework :: Zope :: 6",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+]
+
+[project.urls]
+Homepage = "https://github.com/fixader/Products.OpenODBCDA"
+Repository = "https://github.com/fixader/Products.OpenODBCDA"
+Issues = "https://github.com/fixader/Products.OpenODBCDA/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+
+[tool.setuptools.dynamic]
+version = {attr = "Products.OpenODBCDA._version.__version__"}
+
+[tool.setuptools.package-data]
+"Products.OpenODBCDA" = ["www/*.dtml"]

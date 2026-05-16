@@ -1,0 +1,217 @@
+<!--
+Copyright (c) 2026 Rune Ketil Fredriksen and contributors.
+SPDX-License-Identifier: MIT
+The MIT license permits use, copying, distribution, and modification,
+provided that copyright and permission notices are included.
+See LICENSE and NOTICE for details.
+Developed in collaboration with ChatGPT/Codex.
+-->
+<dtml-var manage_page_header>
+
+<dtml-with "_(management_view='Properties')">
+  <dtml-var manage_tabs>
+</dtml-with>
+
+<main class="container-fluid">
+
+  <h2 class="zmi-form-title">Edit OpenODBC DB Connector</h2>
+
+  <form action="manage_edit" method="post" class="zmi-edit">
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input id="title" class="form-control" type="text" name="title"
+             value="&dtml-title;">
+    </div>
+
+    <div class="form-group">
+      <label for="driver">Driver</label>
+      <select id="driver" class="form-control" name="driver">
+        <option value="">Select installed ODBC driver</option>
+        <dtml-in "odbc_drivers()">
+          <option value="&dtml-sequence-item;" <dtml-if "display_driver() == _['sequence-item']">selected</dtml-if>>
+            &dtml-sequence-item;
+          </option>
+        </dtml-in>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group col-md-9">
+        <label for="server">Server</label>
+        <input id="server" class="form-control" type="text" name="server"
+               value="&dtml-display_server;">
+      </div>
+      <div class="form-group col-md-3">
+        <label for="port">Port</label>
+        <input id="port" class="form-control" type="text" name="port"
+               value="&dtml-display_port;">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="database">Database</label>
+      <input id="database" class="form-control" type="text" name="database"
+             value="&dtml-display_database;">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group col-md-6">
+        <label for="username">User</label>
+        <input id="username" class="form-control" type="text" name="username"
+               value="&dtml-display_username;">
+      </div>
+      <div class="form-group col-md-6">
+        <label for="password">Password</label>
+        <input id="password" class="form-control" type="password" name="password"
+               value="">
+        <small class="form-text text-muted">Leave blank to keep the stored password.</small>
+        <label class="mt-2">
+          <input type="checkbox" name="clear_password" value="1">
+          Clear stored password
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="extra_options">Extra options</label>
+      <textarea id="extra_options" class="form-control"
+                name="extra_options:text" rows="3"><dtml-var display_extra_options html_quote></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="connection_string">Raw connection string</label>
+      <textarea id="connection_string" class="form-control"
+                name="connection_string:text" rows="5"><dtml-var raw_connection_string html_quote></textarea>
+      <small class="form-text text-muted">
+        Example:
+        DRIVER={PostgreSQL Unicode};SERVER=127.0.0.1;PORT=5432;DATABASE=openodbc_test;UID=openodbc;PWD=openodbc
+      </small>
+    </div>
+
+    <div class="form-check mb-3">
+      <input name="use_raw_connection_string" type="hidden" value="0">
+      <input id="use_raw_connection_string" class="form-check-input"
+             name="use_raw_connection_string" type="checkbox" value="1"
+             <dtml-if use_raw_connection_string>checked</dtml-if>>
+      <label class="form-check-label" for="use_raw_connection_string">
+        Use raw connection string instead of structured fields
+      </label>
+    </div>
+
+    <hr>
+
+    <h3 class="zmi-form-title">Compatibility Result Options</h3>
+
+    <p class="form-text text-muted">
+      These options are applied after the ODBC driver has returned rows. They
+      can help older Zope applications that expect legacy adapter result
+      formatting.
+    </p>
+
+    <div class="form-group">
+      <label for="date_time_format">Date/time result format</label>
+      <select id="date_time_format" class="form-control" name="date_time_format">
+        <option value="python" <dtml-if "date_time_format == 'python'">selected</dtml-if>>
+          Python date/time objects
+        </option>
+        <option value="zope" <dtml-if "date_time_format == 'zope'">selected</dtml-if>>
+          Zope DateTime objects
+        </option>
+        <option value="iso" <dtml-if "date_time_format == 'iso'">selected</dtml-if>>
+          ISO strings
+        </option>
+      </select>
+    </div>
+
+    <div class="form-check mb-2">
+      <input name="time_as_string" type="hidden" value="0">
+      <input id="time_as_string" class="form-check-input"
+             name="time_as_string" type="checkbox" value="1"
+             <dtml-if time_as_string>checked</dtml-if>>
+      <label class="form-check-label" for="time_as_string">
+        Fetch TIME columns as strings
+      </label>
+    </div>
+
+    <div class="form-check mb-2">
+      <input name="null_as_empty_string" type="hidden" value="0">
+      <input id="null_as_empty_string" class="form-check-input"
+             name="null_as_empty_string" type="checkbox" value="1"
+             <dtml-if null_as_empty_string>checked</dtml-if>>
+      <label class="form-check-label" for="null_as_empty_string">
+        Fetch NULL values as empty strings
+      </label>
+    </div>
+
+    <div class="form-check mb-3">
+      <input name="leave_scale0_floats_untouched" type="hidden" value="0">
+      <input id="leave_scale0_floats_untouched" class="form-check-input"
+             name="leave_scale0_floats_untouched" type="checkbox" value="1"
+             <dtml-if leave_scale0_floats_untouched>checked</dtml-if>>
+      <label class="form-check-label" for="leave_scale0_floats_untouched">
+        Leave scale 0 floats untouched
+      </label>
+      <small class="form-text text-muted">
+        When unchecked, integral float values from scale 0 numeric columns are
+        converted to Python integers.
+      </small>
+    </div>
+
+    <hr>
+
+    <h3 class="zmi-form-title">Connection Pooling</h3>
+
+    <p class="form-text text-muted">
+      Keep pooling disabled or set pool size to 1 for most connector objects.
+      Larger pools are mainly useful for large databases with many simultaneous
+      users hitting the same connector. Many Zope folders with their own pools
+      can create many physical database sessions.
+    </p>
+
+    <div class="form-check mb-3">
+      <input name="pool_enabled" type="hidden" value="0">
+      <input id="pool_enabled" class="form-check-input"
+             name="pool_enabled" type="checkbox" value="1"
+             <dtml-if pool_enabled>checked</dtml-if>>
+      <label class="form-check-label" for="pool_enabled">
+        Enable per-connector connection pool
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label for="pool_size">Pool size</label>
+      <input id="pool_size" class="form-control" type="number"
+             name="pool_size:int" min="1" max="999" value="&dtml-pool_size;">
+      <small class="form-text text-muted">
+        Maximum physical ODBC connections this connector may open.
+      </small>
+    </div>
+
+    <div class="form-group">
+      <button class="btn btn-secondary"
+              type="submit"
+              formaction="manage_populate_from_connection_string"
+              formmethod="post"
+              name="overwrite"
+              value="1">
+        Populate structured fields from raw string
+      </button>
+      <label class="ml-3">
+        <input type="checkbox" name="include_password" value="1">
+        Include password
+      </label>
+    </div>
+
+    <div class="form-check mb-3">
+      <input id="check" class="form-check-input" name="check" type="checkbox" value="1">
+      <label class="form-check-label" for="check">Connect immediately</label>
+    </div>
+
+    <div class="zmi-controls">
+      <input class="btn btn-primary" type="submit" value="Save Changes">
+    </div>
+  </form>
+
+</main>
+
+<dtml-var manage_page_footer>

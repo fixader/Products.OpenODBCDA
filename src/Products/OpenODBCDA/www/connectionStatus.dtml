@@ -1,0 +1,144 @@
+<!--
+Copyright (c) 2026 Rune Ketil Fredriksen and contributors.
+SPDX-License-Identifier: MIT
+The MIT license permits use, copying, distribution, and modification,
+provided that copyright and permission notices are included.
+See LICENSE and NOTICE for details.
+Developed in collaboration with ChatGPT/Codex.
+-->
+<dtml-var manage_page_header>
+
+<dtml-with "_(management_view='Status')">
+  <dtml-var manage_tabs>
+</dtml-with>
+
+<main class="container-fluid">
+
+  <h2 class="zmi-form-title">OpenODBC DB Connector</h2>
+
+  <p class="form-text">
+    Status:
+    <dtml-if connected>
+      <span class="badge badge-success">connected</span>
+    <dtml-else>
+      <span class="badge badge-warning">closed</span>
+    </dtml-if>
+  </p>
+
+  <table class="table table-sm table-bordered">
+    <tbody>
+      <tr>
+        <th class="w-25">Id</th>
+        <td>&dtml-id;</td>
+      </tr>
+      <tr>
+        <th>Title</th>
+        <td>&dtml-title;</td>
+      </tr>
+      <tr>
+        <th>Connection string</th>
+        <td><code><dtml-var masked_connection_string html_quote></code></td>
+      </tr>
+      <tr>
+        <th>Mode</th>
+        <td>
+          <dtml-if use_raw_connection_string>
+            Raw connection string
+          <dtml-else>
+            Structured fields
+          </dtml-if>
+        </td>
+      </tr>
+      <dtml-unless use_raw_connection_string>
+        <tr>
+          <th>Driver</th>
+          <td><code>&dtml-driver;</code></td>
+        </tr>
+        <tr>
+          <th>Server</th>
+          <td>&dtml-server;</td>
+        </tr>
+        <tr>
+          <th>Port</th>
+          <td>&dtml-port;</td>
+        </tr>
+        <tr>
+          <th>Database</th>
+          <td>&dtml-database;</td>
+        </tr>
+        <tr>
+          <th>User</th>
+          <td>&dtml-username;</td>
+        </tr>
+      </dtml-unless>
+      <tr>
+        <th>Backend</th>
+        <td><dtml-var connection_info html_quote></td>
+      </tr>
+      <tr>
+        <th>Pooling</th>
+        <td>
+          <dtml-if pool_enabled>
+            Enabled, configured pool size <dtml-var effective_pool_size>
+          <dtml-else>
+            Disabled, single physical connection
+          </dtml-if>
+        </td>
+      </tr>
+      <tr>
+        <th>Physical connections</th>
+        <td>
+          <dtml-var current_pool_size> open,
+          <dtml-var idle_pool_size> idle,
+          <dtml-var in_use_pool_size> in use
+        </td>
+      </tr>
+      <tr>
+        <th>Compatibility result options</th>
+        <td>
+          <ul class="mb-0">
+            <li>Date/time result format:
+              <dtml-var date_time_format>
+            </li>
+            <li>Fetch TIME columns as strings:
+              <dtml-if time_as_string>yes<dtml-else>no</dtml-if>
+            </li>
+            <li>Fetch NULL values as empty strings:
+              <dtml-if null_as_empty_string>yes<dtml-else>no</dtml-if>
+            </li>
+            <li>Leave scale 0 floats untouched:
+              <dtml-if leave_scale0_floats_untouched>yes<dtml-else>no</dtml-if>
+            </li>
+          </ul>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="zmi-controls mb-4">
+    <dtml-if connected>
+      <form action="manage_close_connection" method="get">
+        <input class="btn btn-primary" type="submit" value="Close Connection">
+      </form>
+    <dtml-else>
+      <form action="manage_open_connection" method="get">
+        <input class="btn btn-primary" type="submit" value="Open Connection">
+      </form>
+    </dtml-if>
+  </div>
+
+  <h3 class="zmi-form-title">Available ODBC Drivers</h3>
+
+  <dtml-if odbc_drivers>
+    <ul>
+      <dtml-in odbc_drivers>
+        <li><code>&dtml-sequence-item;</code></li>
+      </dtml-in>
+    </ul>
+  <dtml-else>
+    <p class="form-text">No ODBC drivers were reported by pyodbc.</p>
+  </dtml-if>
+
+</main>
+
+<dtml-var manage_page_footer>

@@ -1,0 +1,115 @@
+<!--
+Copyright (c) 2026 Rune Ketil Fredriksen and contributors.
+SPDX-License-Identifier: MIT
+The MIT license permits use, copying, distribution, and modification,
+provided that copyright and permission notices are included.
+See LICENSE and NOTICE for details.
+Developed in collaboration with ChatGPT/Codex.
+-->
+<dtml-var manage_page_header>
+
+<dtml-with "_(management_view='Diagnostics')">
+  <dtml-var manage_tabs>
+</dtml-with>
+
+<main class="container-fluid">
+
+  <h2 class="zmi-form-title">Open ODBC Diagnostics</h2>
+
+  <h3 class="zmi-form-title">Internal Type Mapping</h3>
+
+  <dtml-let type_results="type_mapping_diagnostics()">
+    <p class="form-text">
+      <dtml-if "diagnostics_passed(type_results)">
+        <span class="badge badge-success">passed</span>
+      <dtml-else>
+        <span class="badge badge-danger">failed</span>
+      </dtml-if>
+    </p>
+
+    <table class="table table-sm table-striped table-bordered">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Expected</th>
+          <th>Actual</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <dtml-in type_results>
+          <tr>
+            <td><dtml-var "_['sequence-item']['label']" html_quote></td>
+            <td><code><dtml-var "_['sequence-item']['expected']" html_quote></code></td>
+            <td><code><dtml-var "_['sequence-item']['actual']" html_quote></code></td>
+            <td>
+              <dtml-if "_['sequence-item']['passed']">
+                <span class="badge badge-success">passed</span>
+              <dtml-else>
+                <span class="badge badge-danger">failed</span>
+              </dtml-if>
+            </td>
+          </tr>
+        </dtml-in>
+      </tbody>
+    </table>
+  </dtml-let>
+
+  <hr>
+
+  <h3 class="zmi-form-title">Connection Smoke Test</h3>
+
+  <dtml-if connected>
+    <dtml-let connection_check="connection_diagnostics()">
+      <p class="form-text">
+        SQL:
+        <code><dtml-var "connection_check['sql']" html_quote></code>
+      </p>
+
+      <p class="form-text">
+        <dtml-if "diagnostics_passed(connection_check['results'])">
+          <span class="badge badge-success">passed</span>
+        <dtml-else>
+          <span class="badge badge-danger">failed</span>
+        </dtml-if>
+      </p>
+
+      <table class="table table-sm table-striped table-bordered">
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Expected</th>
+            <th>Actual</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <dtml-in "connection_check['results']">
+            <tr>
+              <td><dtml-var "_['sequence-item']['label']" html_quote></td>
+              <td><code><dtml-var "_['sequence-item']['expected']" html_quote></code></td>
+              <td><code><dtml-var "_['sequence-item']['actual']" html_quote></code></td>
+              <td>
+                <dtml-if "_['sequence-item']['passed']">
+                  <span class="badge badge-success">passed</span>
+                <dtml-else>
+                  <span class="badge badge-danger">failed</span>
+                </dtml-if>
+              </td>
+            </tr>
+          </dtml-in>
+        </tbody>
+      </table>
+    </dtml-let>
+  <dtml-else>
+    <p class="form-text">Open the connection before running the connection smoke test.</p>
+    <div class="zmi-controls">
+      <form action="manage_open_connection" method="get">
+        <input class="btn btn-primary" type="submit" value="Open Connection">
+      </form>
+    </div>
+  </dtml-if>
+
+</main>
+
+<dtml-var manage_page_footer>

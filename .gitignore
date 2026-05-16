@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Rune Ketil Fredriksen and contributors.
+# SPDX-License-Identifier: MIT
+# The MIT license permits use, copying, distribution, and modification,
+# provided that copyright and permission notices are included.
+# See LICENSE and NOTICE for details.
+# Developed in collaboration with ChatGPT/Codex.
+
+# Local secrets and lab keys
+.ssh/
+PROJECT_CONTEXT.md
+notes/
+
+# Python build/test artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor and OS noise
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
