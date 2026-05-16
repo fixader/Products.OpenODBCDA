@@ -29,6 +29,7 @@ jobs:
       - name: Build distributions
         run: |
           python -m pip install --upgrade pip build
+          rm -rf dist
           python -m build
 
       - name: Publish to PyPI
