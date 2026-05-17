@@ -10,6 +10,6 @@ include NOTICE
 include README.md
 include INSTALL_ZOPE.md
 include CHANGELOG.md
-include PYPI_RELEASE.md
+include MAINTAINER_RELEASE.md
 recursive-include src/Products/OpenODBCDA/www *.dtml
 recursive-include src/Products/OpenODBCDA/tests *.py

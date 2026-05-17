@@ -1,8 +1,12 @@
-# Publishing To PyPI
+# Maintainer Release Notes
 
-Products.OpenODBCDA uses PyPI Trusted Publishing through GitHub Actions.
-This avoids storing long-lived PyPI API tokens in GitHub secrets or on a
-developer workstation.
+This document is for maintainers who publish Products.OpenODBCDA releases.
+It describes the release plumbing around GitHub Actions, TestPyPI, PyPI, and
+GitHub Release assets.
+
+Products.OpenODBCDA uses PyPI Trusted Publishing through GitHub Actions. This
+avoids storing long-lived PyPI API tokens in GitHub secrets or on a developer
+workstation.
 
 ## Package Name
 
@@ -29,7 +33,7 @@ The `pypi` environment should require manual approval before deployment. This
 keeps accidental releases from being published just because a release or tag was
 created.
 
-## TestPyPI Setup
+## One-Time TestPyPI Setup
 
 1. Create or log in to a TestPyPI account at `https://test.pypi.org/`.
 2. Go to account publishing settings.
@@ -56,7 +60,7 @@ python -m pip install \
 The extra PyPI index is needed because dependencies such as Zope packages and
 pyodbc are normally resolved from the real PyPI.
 
-## PyPI Setup
+## One-Time PyPI Setup
 
 1. Create or log in to a PyPI account at `https://pypi.org/`.
 2. Go to account publishing settings.
@@ -75,7 +79,7 @@ Environment name: pypi
 Future releases can be published by creating a GitHub Release, because
 `publish-pypi.yml` also runs when a release is published.
 
-## What Gets Uploaded
+## PyPI Release Contents
 
 PyPI receives the normal Python packaging artifacts built by `python -m build`:
 
@@ -84,6 +88,13 @@ PyPI receives the normal Python packaging artifacts built by `python -m build`:
 
 The legacy Python 3.8 `.egg` is not uploaded to PyPI. It is attached to GitHub
 Releases for old Zope 5/buildout installations that need it.
+
+GitHub Releases may include additional compatibility artifacts:
+
+- source distribution with the normalized Python filename
+- source distribution with the historical `Products.OpenODBCDA` filename
+- wheel
+- optional Python-version-specific legacy egg
 
 ## Manual Local Build Checks
 

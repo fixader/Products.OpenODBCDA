@@ -160,8 +160,8 @@ The preferred long-term installation path is PyPI. GitHub Releases can also
 attach the built artifacts so administrators can download a specific version
 directly.
 
-See [PYPI_RELEASE.md](PYPI_RELEASE.md) for the Trusted Publishing release
-procedure.
+Maintainer release steps are documented in
+[MAINTAINER_RELEASE.md](MAINTAINER_RELEASE.md).
 
 For local/offline Zope 5 buildout installs, prefer the source distribution over
 a prebuilt egg. Buildout can build an egg for the Python version used by that
