@@ -167,7 +167,7 @@ For local/offline Zope 5 buildout installs, prefer the source distribution over
 a prebuilt egg. Buildout can build an egg for the Python version used by that
 Zope installation. A prebuilt `.egg` is convenient only when it matches the
 target Python version. For old `find-links` based buildouts, use the
-compatibility source filename `Products.OpenODBCDA-0.1.0.tar.gz`.
+compatibility source filename such as `Products.OpenODBCDA-0.1.1.tar.gz`.
 
 Some older buildout/easy_install combinations may still fail when building from
 a source distribution in `find-links`. In that case, use a prebuilt `.egg` that
@@ -249,18 +249,41 @@ DRIVER={MariaDB Unicode};SERVER=mariadb.example.com;PORT=3306;DATABASE=mydb;UID=
 ### Oracle
 
 Oracle ODBC commonly uses `DBQ`, either as a TNS alias or as
-`host:port/service`. Use a raw connection string for Oracle so `DBQ` is explicit.
+`host:port/service`.
 
-With a TNS alias:
+Raw connection string with a TNS alias:
 
 ```text
 DRIVER={Oracle 19c ODBC driver};DBQ=ORCL;UID=myuser;PWD=<password>
 ```
 
-Without a TNS alias:
+Raw connection string without a TNS alias:
 
 ```text
 DRIVER={Oracle 19c ODBC driver};DBQ=myoracleserver.mydomain.com:1521/orcl;UID=myuser;PWD=<password>
+```
+
+Structured Oracle fields also build `DBQ` automatically when the selected
+driver name contains `Oracle`.
+
+For a TNS alias, leave Server and Port empty:
+
+```text
+Driver: Oracle 19c ODBC driver
+Database / service / DBQ: ORCL
+User: myuser
+Password: <password>
+```
+
+For a direct host/service connection:
+
+```text
+Driver: Oracle 19c ODBC driver
+Server: myoracleserver.mydomain.com
+Port: 1521
+Database / service / DBQ: orcl
+User: myuser
+Password: <password>
 ```
 
 If DNS is not available from the Zope server, use an IP address instead of the

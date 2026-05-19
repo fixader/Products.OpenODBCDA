@@ -99,6 +99,22 @@ class PoolingTests(unittest.TestCase):
         connection.pool_enabled = True
         self.assertEqual(connection.effective_pool_size(), 5)
 
+    def test_connection_object_accepts_checkbox_list_for_raw_mode(self):
+        connection = OpenODBCConnection("test", "Test")
+
+        connection.edit(
+            "Test",
+            connection_string="DRIVER={Oracle 19c ODBC driver};DBQ=ORCL",
+            use_raw_connection_string=["0", "1"],
+            check=False,
+        )
+
+        self.assertTrue(connection.use_raw_connection_string)
+        self.assertEqual(
+            connection.effective_connection_string(),
+            "DRIVER={Oracle 19c ODBC driver};DBQ=ORCL",
+        )
+
     def test_connection_object_exposes_result_options(self):
         connection = OpenODBCConnection(
             "test",

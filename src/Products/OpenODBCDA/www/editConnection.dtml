@@ -49,9 +49,14 @@ Developed in collaboration with ChatGPT/Codex.
     </div>
 
     <div class="form-group">
-      <label for="database">Database</label>
+      <label for="database">Database / service / DBQ</label>
       <input id="database" class="form-control" type="text" name="database"
              value="&dtml-display_database;">
+      <small class="form-text text-muted">
+        For Oracle, leave Server empty and enter a TNS alias or full
+        host:port/service value here, or set Server/Port and enter the service
+        name here. Oracle structured mode builds DBQ, not DATABASE.
+      </small>
     </div>
 
     <div class="form-row">
@@ -94,7 +99,7 @@ Developed in collaboration with ChatGPT/Codex.
              name="use_raw_connection_string" type="checkbox" value="1"
              <dtml-if use_raw_connection_string>checked</dtml-if>>
       <label class="form-check-label" for="use_raw_connection_string">
-        Use raw connection string instead of structured fields
+        Use raw connection string exactly as entered
       </label>
     </div>
 

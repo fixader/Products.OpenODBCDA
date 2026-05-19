@@ -35,12 +35,17 @@ def build_connection_string(
     parts = []
     if driver:
         parts.append(("DRIVER", _brace_driver(driver)))
-    if server:
-        parts.append(("SERVER", server))
-    if port:
-        parts.append(("PORT", port))
-    if database:
-        parts.append(("DATABASE", database))
+    if is_oracle_driver(driver):
+        dbq = build_oracle_dbq(server=server, port=port, database=database)
+        if dbq:
+            parts.append(("DBQ", dbq))
+    else:
+        if server:
+            parts.append(("SERVER", server))
+        if port:
+            parts.append(("PORT", port))
+        if database:
+            parts.append(("DATABASE", database))
     if username:
         parts.append(("UID", username))
     if password:
@@ -130,7 +135,34 @@ def normalize_extra_options(extra_options):
     return ";".join(lines)
 
 
+def is_oracle_driver(driver):
+    """Return true when the selected ODBC driver looks like Oracle."""
+    return "oracle" in (driver or "").lower()
+
+
+def build_oracle_dbq(server="", port="", database=""):
+    """Build Oracle's DBQ value from structured fields.
+
+    Oracle ODBC uses DBQ rather than SERVER/DATABASE. With no server, the
+    database field is treated as a TNS alias or a full host:port/service value.
+    With a server, database is treated as the service name.
+    """
+    server = (server or "").strip()
+    port = str(port or "").strip()
+    database = (database or "").strip()
+    if not server:
+        return database
+    host = server
+    if port:
+        host = f"{host}:{port}"
+    if database:
+        return f"{host}/{database}"
+    return host
+
+
 def truthy(value):
+    if isinstance(value, (list, tuple)):
+        return any(truthy(item) for item in value)
     return str(value).lower() in {"1", "true", "yes", "on"}
 
 

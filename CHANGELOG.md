@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1 - Oracle connection string fix
+
+### Fixed
+
+- Structured Oracle connections now build `DBQ=...` instead of
+  `DATABASE=...`.
+- Oracle structured fields can now use either a TNS alias/full DBQ value in
+  the database field, or Server/Port plus a service name.
+- ZMI checkbox values sent as hidden-field plus checkbox pairs are now handled
+  correctly, so `Use raw connection string exactly as entered` stays enabled
+  after saving.
+
 ## 0.1.0 - Initial public testing release
 
 Products.OpenODBCDA is an open ODBC Database Adapter for Zope 5 and Zope 6.

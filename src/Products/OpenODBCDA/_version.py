@@ -6,4 +6,4 @@
 # Developed in collaboration with ChatGPT/Codex.
 """Package version for Products.OpenODBCDA."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

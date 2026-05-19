@@ -63,7 +63,7 @@ Developed in collaboration with ChatGPT/Codex.
           <td>&dtml-port;</td>
         </tr>
         <tr>
-          <th>Database</th>
+          <th>Database / DBQ</th>
           <td>&dtml-database;</td>
         </tr>
         <tr>

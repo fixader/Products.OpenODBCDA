@@ -35,8 +35,15 @@ Developed in collaboration with ChatGPT/Codex.
       <td><input class="form-control" name="port" size="12"></td>
     </tr>
     <tr>
-      <th align="left">Database</th>
-      <td><input class="form-control" name="database" size="40"></td>
+      <th align="left">Database / service / DBQ</th>
+      <td>
+        <input class="form-control" name="database" size="40">
+        <small class="form-text text-muted">
+          For Oracle, leave Server empty and enter a TNS alias or full
+          host:port/service value here, or set Server/Port and enter the
+          service name here.
+        </small>
+      </td>
     </tr>
     <tr>
       <th align="left">User</th>
@@ -59,7 +66,7 @@ Developed in collaboration with ChatGPT/Codex.
         <textarea class="form-control" name="connection_string:text" cols="72" rows="4"></textarea>
         <label>
           <input type="checkbox" name="use_raw_connection_string" value="1">
-          Use raw connection string instead of structured fields
+          Use raw connection string exactly as entered
         </label>
       </td>
     </tr>

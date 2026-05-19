@@ -103,5 +103,5 @@ Before publishing, it is useful to run:
 ```bash
 python -m unittest discover -s src/Products/OpenODBCDA/tests -v
 python -m build
-python -m twine check dist/products_openodbcda-0.1.0.tar.gz dist/products_openodbcda-0.1.0-py3-none-any.whl
+python -m twine check dist/products_openodbcda-<version>.tar.gz dist/products_openodbcda-<version>-py3-none-any.whl
 ```
