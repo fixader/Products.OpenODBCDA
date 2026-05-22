@@ -697,7 +697,7 @@ If the GitHub repository is public, pip can also install directly from a tagged
 release:
 
 ```bash
-python -m pip install "Products.OpenODBCDA @ git+https://github.com/fixader/Products.OpenODBCDA.git@0.1.1"
+python -m pip install "Products.OpenODBCDA @ git+https://github.com/fixader/Products.OpenODBCDA.git@0.1.2"
 ```
 
 ## Install In A Zope 5 Buildout
@@ -774,13 +774,13 @@ For older Zope 5 installations without direct PyPI access, copy the source
 distribution to a directory readable by the buildout, for example:
 
 ```text
-/home/zope/downloads/Products.OpenODBCDA-0.1.1.tar.gz
+/home/zope/downloads/Products.OpenODBCDA-0.1.2.tar.gz
 ```
 
 Older buildout/easy_install based environments may not recognize the normalized
 PyPI source filename when using `find-links`. If your downloaded file is named
-`products_openodbcda-0.1.1.tar.gz`, rename it to
-`Products.OpenODBCDA-0.1.1.tar.gz` in the local `find-links` directory.
+`products_openodbcda-0.1.2.tar.gz`, rename it to
+`Products.OpenODBCDA-0.1.2.tar.gz` in the local `find-links` directory.
 
 Then use:
 
@@ -815,7 +815,7 @@ this only when the egg tag matches the target Python version, for example a
 `py3.8` egg with a Python 3.8 based Zope 5 installation.
 
 ```text
-/home/zope/downloads/Products.OpenODBCDA-0.1.1-py3.8.egg
+/home/zope/downloads/Products.OpenODBCDA-0.1.2-py3.8.egg
 ```
 
 The buildout `find-links` configuration is the same as for a source

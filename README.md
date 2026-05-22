@@ -167,7 +167,7 @@ For local/offline Zope 5 buildout installs, prefer the source distribution over
 a prebuilt egg. Buildout can build an egg for the Python version used by that
 Zope installation. A prebuilt `.egg` is convenient only when it matches the
 target Python version. For old `find-links` based buildouts, use the
-compatibility source filename such as `Products.OpenODBCDA-0.1.1.tar.gz`.
+compatibility source filename such as `Products.OpenODBCDA-0.1.2.tar.gz`.
 
 Some older buildout/easy_install combinations may still fail when building from
 a source distribution in `find-links`. In that case, use a prebuilt `.egg` that
@@ -338,6 +338,13 @@ Connection pooling is configured per Zope connection object. The default is a
 single physical connection. Larger pools should be used sparingly because many
 Zope folders with their own connector objects can otherwise create many
 database sessions.
+
+If an idle ODBC handle has been killed by the database server, OpenODBCDA
+discards that physical connection. For read-only style SQL, it opens a fresh
+connection and retries once. This is mainly meant to cover database restarts or
+administrator-terminated sessions, such as PostgreSQL `08S01`
+communication-link failures. Write statements are not automatically retried,
+because the database may have completed the write before the connection failed.
 
 Z SQL Method `Maximum rows to retrieve` is honored by the adapter. Set it to
 `0` only when you deliberately want no row limit; large results are materialized

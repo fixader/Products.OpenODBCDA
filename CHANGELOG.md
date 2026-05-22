@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2 - Lost connection recovery
+
+### Added
+
+- ODBC connections that fail with a clear communication-link/lost-connection
+  error are now discarded automatically. Read-only style SQL is reopened and
+  retried once, helping Zope recover when a database server restarts or
+  terminates a backend session while an idle connector still holds the old ODBC
+  handle.
+
 ## 0.1.1 - Oracle connection string fix
 
 ### Fixed

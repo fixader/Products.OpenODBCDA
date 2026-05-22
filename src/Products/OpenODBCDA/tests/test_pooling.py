@@ -9,6 +9,8 @@
 import unittest
 from unittest.mock import patch
 
+import pyodbc
+
 from Products.OpenODBCDA.connection import OpenODBCConnection
 from Products.OpenODBCDA.db import OpenODBCDatabaseConnection
 from Products.OpenODBCDA.db import normalize_pool_size
@@ -30,14 +32,31 @@ class FakeCursor:
 class FakeConnection:
     closed = False
 
+    def __init__(self, cursor=None):
+        self.cursor_obj = cursor
+        self.closed = False
+
     def cursor(self):
-        return FakeCursor()
+        return self.cursor_obj or FakeCursor()
 
     def close(self):
         self.closed = True
 
     def getinfo(self, code):
         return f"info-{code}"
+
+
+class LostConnectionCursor:
+    description = None
+
+    def execute(self, sql):
+        raise pyodbc.Error(
+            "08S01",
+            "[08S01] SQLExecDirect unable due to the connection lost",
+        )
+
+    def close(self):
+        pass
 
 
 class PoolingTests(unittest.TestCase):
@@ -75,6 +94,65 @@ class PoolingTests(unittest.TestCase):
             self.assertEqual(pool.current_pool_size(), 1)
             self.assertEqual(pool.idle_pool_size(), 1)
             self.assertEqual(len(created), 1)
+
+    def test_query_discards_lost_connection_and_retries_once(self):
+        created = []
+
+        def connect(connection_string, autocommit=True):
+            if not created:
+                connection = FakeConnection(LostConnectionCursor())
+            else:
+                connection = FakeConnection()
+            created.append(connection)
+            return connection
+
+        with patch("Products.OpenODBCDA.db.pyodbc.connect", connect):
+            pool = OpenODBCDatabaseConnection("dsn", pool_size=1)
+            items, rows = pool.query("select 1")
+
+            self.assertEqual(items[0]["type"], "i")
+            self.assertEqual(rows, [(1,)])
+            self.assertEqual(len(created), 2)
+            self.assertTrue(created[0].closed)
+            self.assertFalse(created[1].closed)
+            self.assertEqual(pool.current_pool_size(), 1)
+            self.assertEqual(pool.idle_pool_size(), 1)
+
+    def test_lost_connection_on_write_is_not_retried(self):
+        created = []
+
+        def connect(connection_string, autocommit=True):
+            connection = FakeConnection(LostConnectionCursor())
+            created.append(connection)
+            return connection
+
+        with patch("Products.OpenODBCDA.db.pyodbc.connect", connect):
+            pool = OpenODBCDatabaseConnection("dsn", pool_size=1)
+            with self.assertRaises(pyodbc.Error):
+                pool.query("insert into log_table(message) values ('hello')")
+
+            self.assertEqual(len(created), 1)
+            self.assertTrue(created[0].closed)
+            self.assertEqual(pool.current_pool_size(), 0)
+            self.assertEqual(pool.idle_pool_size(), 0)
+
+    def test_read_query_with_leading_comment_can_be_retried(self):
+        created = []
+
+        def connect(connection_string, autocommit=True):
+            if not created:
+                connection = FakeConnection(LostConnectionCursor())
+            else:
+                connection = FakeConnection()
+            created.append(connection)
+            return connection
+
+        with patch("Products.OpenODBCDA.db.pyodbc.connect", connect):
+            pool = OpenODBCDatabaseConnection("dsn", pool_size=1)
+            _items, rows = pool.query("-- comment\nselect 1")
+
+            self.assertEqual(rows, [(1,)])
+            self.assertEqual(len(created), 2)
 
     def test_pool_can_open_up_to_configured_size(self):
         created = []

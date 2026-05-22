@@ -68,16 +68,23 @@ class OpenODBCDatabaseConnection:
             self._release(connection)
 
     def query(self, sql, max_rows=999999):
-        connection = self._acquire()
-        try:
-            return _query(
-                connection,
-                sql,
-                max_rows=max_rows,
-                result_options=self.result_options,
-            )
-        finally:
-            self._release(connection)
+        for attempt in range(2):
+            connection = self._acquire()
+            discard = False
+            try:
+                return _query(
+                    connection,
+                    sql,
+                    max_rows=max_rows,
+                    result_options=self.result_options,
+                )
+            except pyodbc.Error as exc:
+                discard = _is_connection_lost_error(exc)
+                if discard and attempt == 0 and _is_retryable_sql(sql):
+                    continue
+                raise
+            finally:
+                self._release(connection, discard=discard)
 
     def current_pool_size(self):
         with self._condition:
@@ -113,9 +120,9 @@ class OpenODBCDatabaseConnection:
                 self._condition.notify()
             raise
 
-    def _release(self, connection):
+    def _release(self, connection, discard=False):
         with self._condition:
-            if self._closed:
+            if self._closed or discard:
                 self._opened -= 1
                 close_connection = True
             else:
@@ -184,6 +191,46 @@ def _close_connection(connection):
         connection.close()
     except pyodbc.Error:
         pass
+
+
+def _is_connection_lost_error(exc):
+    text = " ".join(str(arg) for arg in getattr(exc, "args", ()) or (exc,))
+    text_lower = text.lower()
+    lost_phrases = (
+        "08s01",
+        "communication link failure",
+        "connection lost",
+        "connection is closed",
+        "connection object is gone",
+        "server closed the connection",
+        "terminating connection due to administrator command",
+        "sqlserverconnection terminated",
+    )
+    return any(phrase in text_lower for phrase in lost_phrases)
+
+
+def _is_retryable_sql(sql):
+    first_word = _first_sql_word(sql)
+    return first_word in {"select", "with", "show", "explain", "values"}
+
+
+def _first_sql_word(sql):
+    sql = str(sql or "").lstrip()
+    while True:
+        if sql.startswith("--"):
+            _, separator, sql = sql.partition("\n")
+            if not separator:
+                return ""
+            sql = sql.lstrip()
+            continue
+        if sql.startswith("/*"):
+            _, separator, sql = sql.partition("*/")
+            if not separator:
+                return ""
+            sql = sql.lstrip()
+            continue
+        break
+    return sql.split(None, 1)[0].lower() if sql else ""
 
 
 def _fetch_rows(cursor, max_rows):
