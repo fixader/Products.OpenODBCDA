@@ -322,6 +322,105 @@ DRIVER={FreeTDS};SERVER=sqlserver.example.com;PORT=1433;DATABASE=mydb;UID=myuser
 In the lab, SQL Server 2022 worked with newer TDS versions, while an older SQL
 Server target required `TDS_Version=7.0`.
 
+## BLOB And CLOB Examples
+
+The examples below are intentionally small and practical. They are not a
+complete explanation of large object handling for each database. Use the
+documentation for the database and ODBC driver you are working with as the
+authoritative reference.
+
+OpenODBCDA sends SQL through to the ODBC driver unchanged. That means binary
+values used in `INSERT` statements must be written with the syntax expected by
+the target database.
+
+### SQLite 3 BLOB
+
+```sql
+CREATE TABLE openodbcda_lob_test (
+    id INTEGER PRIMARY KEY,
+    text_col TEXT,
+    blob_col BLOB
+);
+
+INSERT INTO openodbcda_lob_test (id, text_col, blob_col)
+VALUES (1, 'text value', X'000102FFFEFD');
+
+SELECT id, text_col, blob_col
+FROM openodbcda_lob_test;
+```
+
+### PostgreSQL `bytea`
+
+```sql
+CREATE TABLE openodbcda_lob_test (
+    id integer PRIMARY KEY,
+    text_col text,
+    blob_col bytea
+);
+
+INSERT INTO openodbcda_lob_test (id, text_col, blob_col)
+VALUES (1, 'text value', decode('000102fffefd', 'hex'));
+
+SELECT id, text_col, blob_col
+FROM openodbcda_lob_test;
+```
+
+### MariaDB `LONGTEXT` And `LONGBLOB`
+
+```sql
+CREATE TABLE openodbcda_lob_test (
+    id INT PRIMARY KEY,
+    text_col LONGTEXT,
+    blob_col LONGBLOB
+);
+
+INSERT INTO openodbcda_lob_test (id, text_col, blob_col)
+VALUES (1, 'text value', UNHEX('000102FFFEFD'));
+
+SELECT id, text_col, blob_col
+FROM openodbcda_lob_test;
+```
+
+### Microsoft SQL Server `NVARCHAR(MAX)` And `VARBINARY(MAX)`
+
+```sql
+CREATE TABLE dbo.openodbcda_lob_test (
+    id INT PRIMARY KEY,
+    text_col NVARCHAR(MAX),
+    blob_col VARBINARY(MAX)
+);
+
+INSERT INTO dbo.openodbcda_lob_test (id, text_col, blob_col)
+VALUES (
+    1,
+    N'text value',
+    CONVERT(VARBINARY(MAX), '000102FFFEFD', 2)
+);
+
+SELECT id, text_col, blob_col
+FROM dbo.openodbcda_lob_test;
+```
+
+### Oracle CLOB And BLOB
+
+```sql
+CREATE TABLE openodbcda_lob_test (
+    id NUMBER PRIMARY KEY,
+    text_col CLOB,
+    blob_col BLOB
+);
+
+INSERT INTO openodbcda_lob_test (id, text_col, blob_col)
+VALUES (
+    1,
+    TO_CLOB('text value'),
+    TO_BLOB(HEXTORAW('000102FFFEFD'))
+);
+
+SELECT id, text_col, blob_col
+FROM openodbcda_lob_test;
+```
+
 ## Diagnostics And Pooling
 
 Tests live inside the product package:
