@@ -130,10 +130,24 @@ class OpenODBCDatabaseConnection:
         finally:
             self._release(connection)
 
+    def primary_key_columns(self, table, schema=None):
+        return [key["column"] for key in self.primary_keys(table, schema=schema)]
+
     def foreign_keys(self, table=None, schema=None):
         connection = self._acquire()
         try:
             return self.introspection_provider.foreign_keys(
+                connection,
+                table=table,
+                schema=schema,
+            )
+        finally:
+            self._release(connection)
+
+    def referenced_by(self, table, schema=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.referenced_by(
                 connection,
                 table=table,
                 schema=schema,
@@ -328,6 +342,14 @@ class ODBCIntrospectionProvider:
         cursor = connection.cursor()
         try:
             rows = cursor.foreignKeys(foreignTable=table, foreignSchema=schema)
+            return [_normalize_foreign_key_row(row) for row in rows]
+        finally:
+            cursor.close()
+
+    def referenced_by(self, connection, table, schema=None):
+        cursor = connection.cursor()
+        try:
+            rows = cursor.foreignKeys(table=table, schema=schema)
             return [_normalize_foreign_key_row(row) for row in rows]
         finally:
             cursor.close()

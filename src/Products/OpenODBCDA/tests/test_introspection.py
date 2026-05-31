@@ -301,6 +301,26 @@ class IntrospectionProviderTests(unittest.TestCase):
         )
         self.assertTrue(cursor.closed)
 
+    def test_referenced_by_normalizes_rows_and_passes_parameters(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.referenced_by(
+            CatalogConnection(cursor),
+            table="customers",
+            schema="public",
+        )
+
+        self.assertEqual(result[0]["fk_table"], "orders")
+        self.assertEqual(result[0]["fk_column"], "customer_id")
+        self.assertEqual(result[0]["pk_table"], "customers")
+        self.assertEqual(result[0]["pk_column"], "id")
+        self.assertEqual(
+            cursor.calls,
+            [("foreignKeys", {"table": "customers", "schema": "public"})],
+        )
+        self.assertTrue(cursor.closed)
+
     def test_cursor_is_closed_when_catalog_call_fails(self):
         cursor = CatalogCursor()
         cursor.raise_on_tables = True
@@ -368,6 +388,14 @@ class DatabaseConnectionIntrospectionTests(unittest.TestCase):
         ):
             connection = OpenODBCDatabaseConnection("dsn")
             self.assertEqual(connection.tables()[0]["name"], "customers")
+            self.assertEqual(
+                connection.primary_key_columns("customers"),
+                ["id"],
+            )
+            self.assertEqual(
+                connection.referenced_by("customers")[0]["fk_table"],
+                "orders",
+            )
 
     def test_zope_connection_exposes_simple_name_aliases(self):
         cursor = CatalogCursor()
@@ -379,6 +407,11 @@ class DatabaseConnectionIntrospectionTests(unittest.TestCase):
             connection = OpenODBCConnection("test", "Test", "dsn")
             self.assertEqual(connection.table_names(), ["customers"])
             self.assertEqual(connection.column_names("customers"), ["id"])
+            self.assertEqual(connection.primary_key_columns("customers"), ["id"])
+            self.assertEqual(
+                connection.referenced_by("customers")[0]["fk_table"],
+                "orders",
+            )
 
 
 if __name__ == "__main__":

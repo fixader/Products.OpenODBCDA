@@ -199,7 +199,9 @@ connection.version()
 connection.tables(schema=None, table=None, table_type=None)
 connection.columns(table, schema=None, column=None)
 connection.primary_keys(table, schema=None)
+connection.primary_key_columns(table, schema=None)
 connection.foreign_keys(table=None, schema=None)
+connection.referenced_by(table, schema=None)
 ```
 
 `connection.version()` returns the installed Products.OpenODBCDA adapter
@@ -237,10 +239,7 @@ columns = db.columns(table_name, schema=schema)
 for column in columns:
     print(column["ordinal"], column["name"], column["type_name"], column["nullable"])
 
-primary_key_columns = [
-    key["column"]
-    for key in db.primary_keys(table_name, schema=schema)
-]
+primary_key_columns = db.primary_key_columns(table_name, schema=schema)
 print("primary key columns: " + str(primary_key_columns))
 
 foreign_keys = db.foreign_keys(table_name, schema=schema)
@@ -255,6 +254,19 @@ if len(foreign_keys) > 0:
         )
 else:
     print("No foreign keys")
+
+referenced_by = db.referenced_by(table_name, schema=schema)
+if len(referenced_by) > 0:
+    for key in referenced_by:
+        print(
+            key["fk_table"],
+            key["fk_column"],
+            "references",
+            key["pk_table"],
+            key["pk_column"],
+        )
+else:
+    print("No tables reference " + table_name)
 ```
 
 For simple wizards, the name aliases are often enough:
@@ -282,6 +294,11 @@ Internally these call the ODBC catalog APIs:
 - `cursor.columns(...)`
 - `cursor.primaryKeys(...)`
 - `cursor.foreignKeys(...)`
+
+`foreign_keys(table, schema)` returns foreign keys owned by `table`: what this
+table points to. `referenced_by(table, schema)` returns foreign keys in other
+tables that point to `table`, which is useful for master/detail wizards and
+"show child tables" style navigation.
 
 The default implementation is intentionally small and lives behind an internal
 introspection provider. Normal installations use the default pyodbc/ODBC

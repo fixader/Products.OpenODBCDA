@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.4 - Referenced-by introspection
+
+### Added
+
+- Added `referenced_by(table, schema=None)` for incoming foreign key metadata:
+  the tables and columns that reference the selected table.
+- Added `primary_key_columns(table, schema=None)` as a small convenience helper
+  for callers that only need the primary key column names.
+- Documented the difference between `foreign_keys()` and `referenced_by()` for
+  master/detail and child-table wizard use cases.
+- Added unit tests for `foreign_keys()`, `primary_keys()`,
+  `primary_key_columns()`, and `referenced_by()` metadata behavior.
+
 ## 0.1.3 - ODBC catalog introspection
 
 ### Added

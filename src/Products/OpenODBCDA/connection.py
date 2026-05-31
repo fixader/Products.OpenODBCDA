@@ -405,10 +405,20 @@ class OpenODBCConnection(Connection):
         """Return normalized ODBC primary key catalog metadata."""
         return self._database_connection().primary_keys(table, schema=schema)
 
+    security.declareProtected(view_management_screens, "primary_key_columns")
+    def primary_key_columns(self, table, schema=None):
+        """Return primary key column names for a table."""
+        return self._database_connection().primary_key_columns(table, schema=schema)
+
     security.declareProtected(view_management_screens, "foreign_keys")
     def foreign_keys(self, table=None, schema=None):
         """Return normalized ODBC foreign key catalog metadata."""
         return self._database_connection().foreign_keys(table=table, schema=schema)
+
+    security.declareProtected(view_management_screens, "referenced_by")
+    def referenced_by(self, table, schema=None):
+        """Return foreign keys in other tables that reference this table."""
+        return self._database_connection().referenced_by(table, schema=schema)
 
     security.declareProtected(view_management_screens, "table_names")
     def table_names(self, schema=None, table=None, table_type=None):
