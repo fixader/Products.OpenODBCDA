@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.2.0 - Extended catalog introspection
+
+### Added
+
+- Added `indexes(table, schema=None, unique=False, quick=True)` for read-only
+  ODBC index metadata based on `SQLStatistics`.
+- Added `views(schema=None, view=None, include_definitions=False)` and
+  `view_definition(view, schema=None)` for best-effort read-only view
+  discovery and definition lookup.
+- Added `index_summary(index)` for non-crashing human-readable index
+  descriptions.
+- Added `index_sql_preview(index)` for non-crashing ANSI-style `CREATE INDEX`
+  previews intended for reading and migration assistance only.
+- Added `row_id_columns(table, schema=None, nullable=True)` and
+  `row_version_columns(table, schema=None, nullable=True)` for ODBC special
+  column metadata.
+- Added `type_info(data_type=None)` for ODBC driver type metadata.
+- Added `procedures(procedure=None, schema=None)` and
+  `procedure_columns(procedure, schema=None, column=None)` for read-only
+  procedure metadata where drivers provide it.
+- Added `procedure_summary(procedure)` and
+  `procedure_call_preview(procedure, columns=None)` as non-crashing
+  human-readable helpers.
+- Added unit tests for index and view normalization, parameter forwarding,
+  incomplete metadata handling, special columns, type info, procedures, and
+  procedure columns.
+
 ## 0.1.4 - Referenced-by introspection
 
 ### Added

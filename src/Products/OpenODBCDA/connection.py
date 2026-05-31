@@ -22,7 +22,11 @@ from .config import truthy
 from .db import OpenODBCDatabaseConnection
 from .db import ResultOptions
 from .db import available_odbc_drivers
+from .db import index_sql_preview
+from .db import index_summary
 from .db import normalize_pool_size
+from .db import procedure_call_preview
+from .db import procedure_summary
 from .diagnostics import diagnostics_passed
 from .diagnostics import run_connection_diagnostics
 from .diagnostics import run_type_mapping_diagnostics
@@ -400,6 +404,20 @@ class OpenODBCConnection(Connection):
             column=column,
         )
 
+    security.declareProtected(view_management_screens, "views")
+    def views(self, schema=None, view=None, include_definitions=False):
+        """Return normalized ODBC view catalog metadata."""
+        return self._database_connection().views(
+            schema=schema,
+            view=view,
+            include_definitions=truthy(include_definitions),
+        )
+
+    security.declareProtected(view_management_screens, "view_definition")
+    def view_definition(self, view, schema=None):
+        """Return a database view definition when the driver exposes it."""
+        return self._database_connection().view_definition(view, schema=schema)
+
     security.declareProtected(view_management_screens, "primary_keys")
     def primary_keys(self, table, schema=None):
         """Return normalized ODBC primary key catalog metadata."""
@@ -409,6 +427,76 @@ class OpenODBCConnection(Connection):
     def primary_key_columns(self, table, schema=None):
         """Return primary key column names for a table."""
         return self._database_connection().primary_key_columns(table, schema=schema)
+
+    security.declareProtected(view_management_screens, "indexes")
+    def indexes(self, table, schema=None, unique=False, quick=True):
+        """Return normalized ODBC index metadata for a table."""
+        return self._database_connection().indexes(
+            table,
+            schema=schema,
+            unique=truthy(unique),
+            quick=truthy(quick),
+        )
+
+    security.declareProtected(view_management_screens, "index_summary")
+    def index_summary(self, index):
+        """Return a non-crashing human-readable index summary."""
+        return index_summary(index)
+
+    security.declareProtected(view_management_screens, "index_sql_preview")
+    def index_sql_preview(self, index):
+        """Return a non-crashing ANSI-style CREATE INDEX preview."""
+        return index_sql_preview(index)
+
+    security.declareProtected(view_management_screens, "row_id_columns")
+    def row_id_columns(self, table, schema=None, nullable=True):
+        """Return ODBC best-row-identifier columns for a table."""
+        return self._database_connection().row_id_columns(
+            table,
+            schema=schema,
+            nullable=truthy(nullable),
+        )
+
+    security.declareProtected(view_management_screens, "row_version_columns")
+    def row_version_columns(self, table, schema=None, nullable=True):
+        """Return ODBC row-version columns for a table."""
+        return self._database_connection().row_version_columns(
+            table,
+            schema=schema,
+            nullable=truthy(nullable),
+        )
+
+    security.declareProtected(view_management_screens, "type_info")
+    def type_info(self, data_type=None):
+        """Return ODBC driver type metadata."""
+        return self._database_connection().type_info(data_type=data_type)
+
+    security.declareProtected(view_management_screens, "procedures")
+    def procedures(self, procedure=None, schema=None):
+        """Return normalized ODBC procedure metadata."""
+        return self._database_connection().procedures(
+            procedure=procedure,
+            schema=schema,
+        )
+
+    security.declareProtected(view_management_screens, "procedure_columns")
+    def procedure_columns(self, procedure, schema=None, column=None):
+        """Return normalized ODBC procedure parameter/result metadata."""
+        return self._database_connection().procedure_columns(
+            procedure,
+            schema=schema,
+            column=column,
+        )
+
+    security.declareProtected(view_management_screens, "procedure_summary")
+    def procedure_summary(self, procedure):
+        """Return a non-crashing human-readable procedure summary."""
+        return procedure_summary(procedure)
+
+    security.declareProtected(view_management_screens, "procedure_call_preview")
+    def procedure_call_preview(self, procedure, columns=None):
+        """Return a non-crashing generic procedure call preview."""
+        return procedure_call_preview(procedure, columns=columns)
 
     security.declareProtected(view_management_screens, "foreign_keys")
     def foreign_keys(self, table=None, schema=None):

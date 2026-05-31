@@ -119,6 +119,29 @@ class OpenODBCDatabaseConnection:
         finally:
             self._release(connection)
 
+    def views(self, schema=None, view=None, include_definitions=False):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.views(
+                connection,
+                schema=schema,
+                view=view,
+                include_definitions=include_definitions,
+            )
+        finally:
+            self._release(connection)
+
+    def view_definition(self, view, schema=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.view_definition(
+                connection,
+                view=view,
+                schema=schema,
+            )
+        finally:
+            self._release(connection)
+
     def primary_keys(self, table, schema=None):
         connection = self._acquire()
         try:
@@ -132,6 +155,73 @@ class OpenODBCDatabaseConnection:
 
     def primary_key_columns(self, table, schema=None):
         return [key["column"] for key in self.primary_keys(table, schema=schema)]
+
+    def indexes(self, table, schema=None, unique=False, quick=True):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.indexes(
+                connection,
+                table=table,
+                schema=schema,
+                unique=unique,
+                quick=quick,
+            )
+        finally:
+            self._release(connection)
+
+    def row_id_columns(self, table, schema=None, nullable=True):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.row_id_columns(
+                connection,
+                table=table,
+                schema=schema,
+                nullable=nullable,
+            )
+        finally:
+            self._release(connection)
+
+    def row_version_columns(self, table, schema=None, nullable=True):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.row_version_columns(
+                connection,
+                table=table,
+                schema=schema,
+                nullable=nullable,
+            )
+        finally:
+            self._release(connection)
+
+    def type_info(self, data_type=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.type_info(connection, data_type=data_type)
+        finally:
+            self._release(connection)
+
+    def procedures(self, procedure=None, schema=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.procedures(
+                connection,
+                procedure=procedure,
+                schema=schema,
+            )
+        finally:
+            self._release(connection)
+
+    def procedure_columns(self, procedure, schema=None, column=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.procedure_columns(
+                connection,
+                procedure=procedure,
+                schema=schema,
+                column=column,
+            )
+        finally:
+            self._release(connection)
 
     def foreign_keys(self, table=None, schema=None):
         connection = self._acquire()
@@ -293,6 +383,45 @@ class ODBCIntrospectionProvider:
         if use_oracle_fallback:
             return self._oracle_columns(connection, table, schema=schema, column=column)
 
+    def views(self, connection, schema=None, view=None, include_definitions=False):
+        try:
+            views = self.tables(
+                connection,
+                schema=schema,
+                table=view,
+                table_type="VIEW",
+            )
+        except Exception:
+            return []
+        if include_definitions:
+            for item in views:
+                item["definition"] = self.view_definition(
+                    connection,
+                    item.get("name"),
+                    schema=item.get("schema") or schema,
+                )
+        return views
+
+    def view_definition(self, connection, view, schema=None):
+        if not view:
+            return None
+        dbms = _connection_dbms_name(connection)
+        strategies = _view_definition_strategies(dbms, view, schema)
+        for sql, params in strategies:
+            cursor = connection.cursor()
+            try:
+                rows = cursor.execute(sql, params)
+                row = rows.fetchone() if hasattr(rows, "fetchone") else None
+                if row:
+                    definition = _row_value(row, "definition", 0)
+                    if definition:
+                        return str(definition)
+            except Exception:
+                pass
+            finally:
+                cursor.close()
+        return None
+
     def _oracle_columns(self, connection, table, schema=None, column=None):
         cursor = connection.cursor()
         try:
@@ -354,6 +483,92 @@ class ODBCIntrospectionProvider:
         finally:
             cursor.close()
 
+    def indexes(self, connection, table, schema=None, unique=False, quick=True):
+        cursor = connection.cursor()
+        try:
+            rows = cursor.statistics(
+                table=table,
+                schema=schema,
+                unique=unique,
+                quick=quick,
+            )
+            return _normalize_index_rows(rows)
+        except pyodbc.Error:
+            return []
+        finally:
+            cursor.close()
+
+    def row_id_columns(self, connection, table, schema=None, nullable=True):
+        cursor = connection.cursor()
+        try:
+            rows = cursor.rowIdColumns(
+                table=table,
+                schema=schema,
+                nullable=nullable,
+            )
+            return [_normalize_special_column_row(row) for row in rows]
+        except pyodbc.Error:
+            return []
+        finally:
+            cursor.close()
+
+    def row_version_columns(self, connection, table, schema=None, nullable=True):
+        cursor = connection.cursor()
+        try:
+            rows = cursor.rowVerColumns(
+                table=table,
+                schema=schema,
+                nullable=nullable,
+            )
+            return [_normalize_special_column_row(row) for row in rows]
+        except pyodbc.Error:
+            return []
+        finally:
+            cursor.close()
+
+    def type_info(self, connection, data_type=None):
+        cursor = connection.cursor()
+        try:
+            data_type = _int_or_none(data_type)
+            rows = cursor.getTypeInfo(data_type)
+            return [_normalize_type_info_row(row) for row in rows]
+        except (TypeError, pyodbc.Error):
+            return []
+        finally:
+            cursor.close()
+
+    def procedures(self, connection, procedure=None, schema=None):
+        cursor = connection.cursor()
+        try:
+            rows = cursor.procedures(procedure=procedure, schema=schema)
+            return [_normalize_procedure_row(row) for row in rows]
+        except pyodbc.Error:
+            return []
+        finally:
+            cursor.close()
+
+    def procedure_columns(self, connection, procedure, schema=None, column=None):
+        cursor = connection.cursor()
+        try:
+            method = getattr(cursor, "procedureColumns")
+            try:
+                rows = method(procedure=procedure, schema=schema, column=column)
+            except TypeError:
+                rows = method(procedure=procedure, schema=schema)
+            columns = [_normalize_procedure_column_row(row) for row in rows]
+            if column:
+                wanted = str(column).lower()
+                columns = [
+                    item
+                    for item in columns
+                    if str(item.get("name") or "").lower() == wanted
+                ]
+            return columns
+        except (AttributeError, TypeError, pyodbc.Error):
+            return []
+        finally:
+            cursor.close()
+
 
 def _normalize_table_row(row):
     return {
@@ -381,6 +596,53 @@ def _normalize_column_row(row):
         "column_default": _row_value(row, "column_def", 12),
         "remarks": _row_value(row, "remarks", 11),
     }
+
+
+def _view_definition_strategies(dbms, view, schema=None):
+    normalized = str(dbms or "").lower()
+    strategies = []
+    if "oracle" in normalized:
+        where = ["upper(view_name) = upper(?)"]
+        params = [view]
+        if schema:
+            where.append("upper(owner) = upper(?)")
+            params.append(schema)
+        strategies.append(
+            (
+                "select text as definition from all_views where "
+                + " and ".join(where),
+                params,
+            )
+        )
+    elif "postgres" in normalized:
+        strategies.append(_information_schema_view_query(view, schema))
+    elif "sql server" in normalized or "microsoft" in normalized:
+        strategies.append(_information_schema_view_query(view, schema))
+    elif "mysql" in normalized or "mariadb" in normalized:
+        strategies.append(_information_schema_view_query(view, schema))
+    elif "sqlite" in normalized:
+        strategies.append(
+            (
+                "select sql as definition from sqlite_master "
+                "where type = 'view' and name = ?",
+                [view],
+            )
+        )
+    strategies.append(_information_schema_view_query(view, schema))
+    return strategies
+
+
+def _information_schema_view_query(view, schema=None):
+    where = ["table_name = ?"]
+    params = [view]
+    if schema:
+        where.append("table_schema = ?")
+        params.append(schema)
+    return (
+        "select view_definition as definition from information_schema.views "
+        "where " + " and ".join(where),
+        params,
+    )
 
 
 def _normalize_oracle_column_row(row):
@@ -433,6 +695,305 @@ def _normalize_foreign_key_row(row):
     }
 
 
+def _normalize_index_rows(rows):
+    indexes = []
+    by_key = {}
+    for row in rows:
+        column_name = _row_value(row, "column_name", 8)
+        index_name = _row_value(row, "index_name", 5)
+        if not index_name and not column_name:
+            continue
+        key = (
+            _row_value(row, "table_cat", 0),
+            _row_value(row, "table_schem", 1),
+            _row_value(row, "table_name", 2),
+            _row_value(row, "index_qualifier", 4),
+            index_name,
+        )
+        index = by_key.get(key)
+        if index is None:
+            non_unique = _row_value(row, "non_unique", 3)
+            index = {
+                "catalog": key[0],
+                "schema": key[1],
+                "table": key[2],
+                "name": index_name,
+                "qualifier": key[3],
+                "unique": None if non_unique is None else not bool(non_unique),
+                "non_unique": non_unique,
+                "type": _row_value(row, "type", 6),
+                "type_name": _index_type_name(_row_value(row, "type", 6)),
+                "columns": [],
+                "cardinality": _int_or_none(_row_value(row, "cardinality", 10)),
+                "pages": _int_or_none(_row_value(row, "pages", 11)),
+                "filter_condition": _row_value(row, "filter_condition", 12),
+            }
+            indexes.append(index)
+            by_key[key] = index
+        index["columns"].append(
+            {
+                "name": column_name,
+                "ordinal": _int_or_none(_row_value(row, "ordinal_position", 7)),
+                "sort": _row_value(row, "asc_or_desc", 9),
+            }
+        )
+        for field, column_index in (
+            ("cardinality", 10),
+            ("pages", 11),
+            ("filter_condition", 12),
+        ):
+            if index[field] is None:
+                value = _row_value(row, field, column_index)
+                if field in {"cardinality", "pages"}:
+                    value = _int_or_none(value)
+                index[field] = value
+    for index in indexes:
+        index["columns"].sort(key=lambda item: item.get("ordinal") or 0)
+        index["summary"] = index_summary(index)
+        index["sql_preview"] = index_sql_preview(index)
+    return indexes
+
+
+def _normalize_special_column_row(row):
+    scope = _row_value(row, "scope", 0)
+    pseudo_column = _row_value(row, "pseudo_column", 7)
+    return {
+        "scope": _int_or_none(scope),
+        "scope_name": _special_column_scope_name(scope),
+        "name": _row_value(row, "column_name", 1),
+        "data_type": _int_or_none(_row_value(row, "data_type", 2)),
+        "type_name": _row_value(row, "type_name", 3),
+        "size": _int_or_none(_row_value(row, "column_size", 4)),
+        "decimal_digits": _int_or_none(_row_value(row, "decimal_digits", 6)),
+        "pseudo_column": _int_or_none(pseudo_column),
+        "pseudo_column_name": _pseudo_column_name(pseudo_column),
+    }
+
+
+def _normalize_type_info_row(row):
+    return {
+        "type_name": _row_value(row, "type_name", 0),
+        "data_type": _int_or_none(_row_value(row, "data_type", 1)),
+        "size": _int_or_none(_row_value(row, "column_size", 2)),
+        "literal_prefix": _row_value(row, "literal_prefix", 3),
+        "literal_suffix": _row_value(row, "literal_suffix", 4),
+        "create_params": _row_value(row, "create_params", 5),
+        "nullable": _int_or_none(_row_value(row, "nullable", 6)),
+        "case_sensitive": _row_value(row, "case_sensitive", 7),
+        "searchable": _int_or_none(_row_value(row, "searchable", 8)),
+        "unsigned": _row_value(row, "unsigned_attribute", 9),
+        "fixed_precision_scale": _row_value(row, "fixed_prec_scale", 10),
+        "auto_unique": _row_value(row, "auto_unique_value", 11),
+        "local_type_name": _row_value(row, "local_type_name", 12),
+        "minimum_scale": _int_or_none(_row_value(row, "minimum_scale", 13)),
+        "maximum_scale": _int_or_none(_row_value(row, "maximum_scale", 14)),
+        "sql_data_type": _int_or_none(_row_value(row, "sql_data_type", 15)),
+        "sql_datetime_sub": _int_or_none(_row_value(row, "sql_datetime_sub", 16)),
+        "num_prec_radix": _int_or_none(_row_value(row, "num_prec_radix", 17)),
+        "interval_precision": _int_or_none(_row_value(row, "interval_precision", 18)),
+    }
+
+
+def _normalize_procedure_row(row):
+    procedure = {
+        "catalog": _row_value(row, "procedure_cat", 0),
+        "schema": _row_value(row, "procedure_schem", 1),
+        "name": _row_value(row, "procedure_name", 2),
+        "num_input_params": _int_or_none(_row_value(row, "num_input_params", 3)),
+        "num_output_params": _int_or_none(_row_value(row, "num_output_params", 4)),
+        "num_result_sets": _int_or_none(_row_value(row, "num_result_sets", 5)),
+        "remarks": _row_value(row, "remarks", 6),
+        "procedure_type": _int_or_none(_row_value(row, "procedure_type", 7)),
+    }
+    procedure["procedure_type_name"] = _procedure_type_name(
+        procedure["procedure_type"]
+    )
+    procedure["summary"] = procedure_summary(procedure)
+    procedure["call_preview"] = procedure_call_preview(procedure)
+    return procedure
+
+
+def _normalize_procedure_column_row(row):
+    column_type = _row_value(row, "column_type", 4)
+    return {
+        "catalog": _row_value(row, "procedure_cat", 0),
+        "schema": _row_value(row, "procedure_schem", 1),
+        "procedure": _row_value(row, "procedure_name", 2),
+        "name": _row_value(row, "column_name", 3),
+        "column_type": _int_or_none(column_type),
+        "column_type_name": _procedure_column_type_name(column_type),
+        "data_type": _int_or_none(_row_value(row, "data_type", 5)),
+        "type_name": _row_value(row, "type_name", 6),
+        "size": _int_or_none(_row_value(row, "column_size", 7)),
+        "decimal_digits": _int_or_none(_row_value(row, "decimal_digits", 9)),
+        "nullable": _int_or_none(_row_value(row, "nullable", 11)),
+        "ordinal": _int_or_none(_row_value(row, "ordinal_position", 17)),
+        "default": _row_value(row, "column_def", 13),
+        "column_default": _row_value(row, "column_def", 13),
+        "remarks": _row_value(row, "remarks", 12),
+    }
+
+
+def index_summary(index):
+    try:
+        unique = "UNIQUE " if index.get("unique") else ""
+        name = index.get("name") or "<unnamed>"
+        table = index.get("table") or "<unknown table>"
+        columns = _index_column_list(index, include_sort=False)
+        return f"{unique}INDEX {name} on {table}({columns})"
+    except Exception:
+        return "INDEX <unavailable>"
+
+
+def index_sql_preview(index):
+    try:
+        unique = "UNIQUE " if index.get("unique") else ""
+        name = _identifier(index.get("name") or "unnamed_index")
+        table = _identifier(index.get("table") or "unknown_table")
+        columns = _index_column_list(index, include_sort=True)
+        if not columns:
+            return "/* index preview unavailable: no indexed columns reported */"
+        return f"CREATE {unique}INDEX {name} ON {table} ({columns})"
+    except Exception:
+        return "/* index preview unavailable */"
+
+
+def _index_column_list(index, include_sort=False):
+    parts = []
+    for column in index.get("columns") or []:
+        name = column.get("name")
+        if not name:
+            continue
+        part = _identifier(name)
+        sort = str(column.get("sort") or "").upper()
+        if include_sort and sort in {"A", "ASC"}:
+            part = f"{part} ASC"
+        elif include_sort and sort in {"D", "DESC"}:
+            part = f"{part} DESC"
+        parts.append(part)
+    return ", ".join(parts)
+
+
+def _identifier(value):
+    return str(value or "").strip() or "<unnamed>"
+
+
+def _index_type_name(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+    return {
+        0: "table_statistic",
+        1: "clustered",
+        2: "hashed",
+        3: "other",
+    }.get(value)
+
+
+def procedure_summary(procedure):
+    try:
+        kind = (procedure.get("procedure_type_name") or "PROCEDURE").upper()
+        name = _qualified_name(procedure.get("schema"), procedure.get("name"))
+        parts = []
+        for label, key in (
+            ("inputs", "num_input_params"),
+            ("outputs", "num_output_params"),
+            ("result_sets", "num_result_sets"),
+        ):
+            value = procedure.get(key)
+            if value is not None:
+                parts.append(f"{label}={value}")
+        suffix = f" ({', '.join(parts)})" if parts else ""
+        return f"{kind} {name}{suffix}"
+    except Exception:
+        return "PROCEDURE <unavailable>"
+
+
+def procedure_call_preview(procedure, columns=None):
+    try:
+        name = _qualified_name(procedure.get("schema"), procedure.get("name"))
+        parameters = _procedure_preview_parameters(procedure, columns)
+        return f"CALL {name}({parameters})"
+    except Exception:
+        return "/* procedure call preview unavailable */"
+
+
+def _procedure_preview_parameters(procedure, columns=None):
+    if columns:
+        parameters = [
+            column.get("name") or "?"
+            for column in columns
+            if column.get("column_type_name") in {"IN", "INOUT"}
+        ]
+        if parameters:
+            return ", ".join(parameters)
+    count = procedure.get("num_input_params")
+    try:
+        count = int(count)
+    except (TypeError, ValueError):
+        return "..."
+    return ", ".join("?" for _ in range(max(count, 0)))
+
+
+def _qualified_name(schema, name):
+    name = _identifier(name or "unknown_procedure")
+    if schema:
+        return f"{_identifier(schema)}.{name}"
+    return name
+
+
+def _special_column_scope_name(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+    return {
+        0: "current_row",
+        1: "transaction",
+        2: "session",
+    }.get(value)
+
+
+def _pseudo_column_name(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+    return {
+        0: "unknown",
+        1: "not_pseudo",
+        2: "pseudo",
+    }.get(value)
+
+
+def _procedure_type_name(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+    return {
+        0: "unknown",
+        1: "procedure",
+        2: "function",
+    }.get(value)
+
+
+def _procedure_column_type_name(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+    return {
+        0: "UNKNOWN",
+        1: "IN",
+        2: "INOUT",
+        3: "RESULT",
+        4: "OUT",
+        5: "RETURN",
+    }.get(value)
+
+
 def _row_value(row, name, index=None, default=None):
     for candidate in (name, name.upper()):
         try:
@@ -452,7 +1013,10 @@ def _row_value(row, name, index=None, default=None):
 
 
 def _is_oracle_connection(connection):
-    for info_type in (getattr(pyodbc, "SQL_DBMS_NAME", None), getattr(pyodbc, "SQL_DRIVER_NAME", None)):
+    for info_type in (
+        getattr(pyodbc, "SQL_DBMS_NAME", None),
+        getattr(pyodbc, "SQL_DRIVER_NAME", None),
+    ):
         if info_type is None:
             continue
         try:
@@ -462,6 +1026,22 @@ def _is_oracle_connection(connection):
         if "oracle" in str(value).lower():
             return True
     return False
+
+
+def _connection_dbms_name(connection):
+    for info_type in (
+        getattr(pyodbc, "SQL_DBMS_NAME", None),
+        getattr(pyodbc, "SQL_DRIVER_NAME", None),
+    ):
+        if info_type is None:
+            continue
+        try:
+            value = connection.getinfo(info_type)
+        except (AttributeError, pyodbc.Error):
+            continue
+        if value:
+            return str(value)
+    return ""
 
 
 def _oracle_type_to_odbc_type(type_name):
@@ -487,6 +1067,8 @@ def _oracle_type_to_odbc_type(type_name):
 
 def _int_or_none(value):
     if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
         return None
     try:
         return int(value)

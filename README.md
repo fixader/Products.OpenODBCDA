@@ -198,8 +198,20 @@ Available methods on an `OpenODBC DB Connector` are:
 connection.version()
 connection.tables(schema=None, table=None, table_type=None)
 connection.columns(table, schema=None, column=None)
+connection.views(schema=None, view=None, include_definitions=False)
+connection.view_definition(view, schema=None)
 connection.primary_keys(table, schema=None)
 connection.primary_key_columns(table, schema=None)
+connection.indexes(table, schema=None, unique=False, quick=True)
+connection.index_summary(index)
+connection.index_sql_preview(index)
+connection.row_id_columns(table, schema=None, nullable=True)
+connection.row_version_columns(table, schema=None, nullable=True)
+connection.type_info(data_type=None)
+connection.procedures(procedure=None, schema=None)
+connection.procedure_columns(procedure, schema=None, column=None)
+connection.procedure_summary(procedure)
+connection.procedure_call_preview(procedure, columns=None)
 connection.foreign_keys(table=None, schema=None)
 connection.referenced_by(table, schema=None)
 ```
@@ -230,6 +242,10 @@ table_by_name = {
 for table in tables:
     print(table["schema"], table["name"], table["type"])
 
+views = db.views(schema=schema)
+for view in views:
+    print(view["schema"], view["name"], view["type"])
+
 if "CUSTOMERS" not in table_by_name:
     raise ValueError("CUSTOMERS was not found in schema %r" % schema)
 
@@ -241,6 +257,29 @@ for column in columns:
 
 primary_key_columns = db.primary_key_columns(table_name, schema=schema)
 print("primary key columns: " + str(primary_key_columns))
+
+indexes = db.indexes(table_name, schema=schema)
+if len(indexes) > 0:
+    for index in indexes:
+        print(index["summary"])
+        print(index["sql_preview"])
+else:
+    print("No indexes")
+
+row_id_columns = db.row_id_columns(table_name, schema=schema)
+if len(row_id_columns) > 0:
+    print("best row id columns: " + str([column["name"] for column in row_id_columns]))
+else:
+    print("No best row id columns reported")
+
+row_version_columns = db.row_version_columns(table_name, schema=schema)
+if len(row_version_columns) > 0:
+    print(
+        "row version columns: "
+        + str([column["name"] for column in row_version_columns])
+    )
+else:
+    print("No row version columns reported")
 
 foreign_keys = db.foreign_keys(table_name, schema=schema)
 if len(foreign_keys) > 0:
@@ -294,11 +333,65 @@ Internally these call the ODBC catalog APIs:
 - `cursor.columns(...)`
 - `cursor.primaryKeys(...)`
 - `cursor.foreignKeys(...)`
+- `cursor.statistics(...)`
+- `cursor.rowIdColumns(...)`
+- `cursor.rowVerColumns(...)`
+- `cursor.getTypeInfo(...)`
+- `cursor.procedures(...)`
+- `cursor.procedureColumns(...)`
 
 `foreign_keys(table, schema)` returns foreign keys owned by `table`: what this
 table points to. `referenced_by(table, schema)` returns foreign keys in other
 tables that point to `table`, which is useful for master/detail wizards and
 "show child tables" style navigation.
+
+`views(schema, view)` lists views using ODBC table metadata with
+`table_type="VIEW"`. `view_definition(view, schema)` makes a best-effort,
+read-only attempt to fetch the view SQL text from common database metadata
+tables, such as `information_schema.views`, Oracle `all_views`, or SQLite
+`sqlite_master`. `views(..., include_definitions=True)` includes that same
+best-effort definition field for each view. View definitions are not a
+portable ODBC catalog feature, so OpenODBCDA returns `None` or an empty list
+when a driver or database cannot provide them. For the exact view text, use
+the database's native tools and documentation.
+
+`indexes(table, schema)` returns read-only ODBC index metadata, including
+index names, uniqueness, indexed columns, sort direction where reported by the
+driver, and optional statistics such as cardinality, pages, and filter
+condition. Each returned index also includes `summary` and `sql_preview`
+strings. `index_summary(index)` is a human-readable description.
+`index_sql_preview(index)` is a generic ANSI-style preview for reading and
+migration assistance only. It is not guaranteed to be executable on the source
+or target database. Database-specific features such as clustered indexes,
+tablespaces, operator classes, expression indexes, included columns, bitmap
+indexes, partial indexes, storage parameters, and quoting rules are not
+reconstructed. Use this preview as a starting point, then adapt it with your
+database documentation, migration tooling, or local code assistant.
+
+`row_id_columns(table, schema)` uses ODBC special-column metadata to ask the
+driver for the best columns to identify a row when a formal primary key is not
+available. `row_version_columns(table, schema)` asks for columns that change
+when the row changes, where the driver can report such metadata. Some drivers
+return no rows for one or both calls; OpenODBCDA returns an empty list in that
+case.
+
+`type_info(data_type)` reports the data types supported by the ODBC driver.
+`procedures(procedure, schema)` reports stored procedures and functions where
+the driver exposes them. `procedure_columns(procedure, schema, column)` reports
+procedure parameters, return values, and result columns where the driver can
+describe them. Many drivers only report parameters, and some report incomplete
+or no result-column metadata.
+
+Procedure summaries and call previews are intentionally conservative.
+`procedure_summary(procedure)` returns a human-readable description.
+`procedure_call_preview(procedure, columns)` returns a generic SQL-style call
+preview for reading and migration assistance only. It is not guaranteed to be
+valid for the source or target database. Stored procedure syntax, named
+parameters, return values, packages, overloaded procedures, multiple result
+sets, and output-parameter handling are database-specific. When OpenODBCDA
+cannot make a useful preview, it returns an explicit "preview unavailable"
+message instead of raising an error. Use database documentation, database-native
+tools, migration tooling, or a local code assistant for the exact dialect.
 
 The default implementation is intentionally small and lives behind an internal
 introspection provider. Normal installations use the default pyodbc/ODBC

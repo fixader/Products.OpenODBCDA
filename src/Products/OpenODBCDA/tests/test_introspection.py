@@ -12,6 +12,10 @@ from unittest.mock import patch
 from Products.OpenODBCDA.connection import OpenODBCConnection
 from Products.OpenODBCDA.db import ODBCIntrospectionProvider
 from Products.OpenODBCDA.db import OpenODBCDatabaseConnection
+from Products.OpenODBCDA.db import index_sql_preview
+from Products.OpenODBCDA.db import index_summary
+from Products.OpenODBCDA.db import procedure_call_preview
+from Products.OpenODBCDA.db import procedure_summary
 from Products.OpenODBCDA.db import pyodbc
 from Products.OpenODBCDA._version import __version__
 
@@ -31,11 +35,23 @@ class CatalogCursor:
         self.closed = False
         self.calls = []
         self.raise_on_tables = False
+        self.raise_on_execute = False
+        self.execute_result = CatalogRow("select id, name from customers")
 
     def tables(self, **kwargs):
         self.calls.append(("tables", kwargs))
         if self.raise_on_tables:
             raise RuntimeError("catalog failure")
+        if kwargs.get("tableType") == "VIEW":
+            return [
+                CatalogRow(
+                    "cat",
+                    "public",
+                    "customer_view",
+                    "VIEW",
+                    "customer view",
+                )
+            ]
         return [
             CatalogRow(
                 "cat",
@@ -45,6 +61,15 @@ class CatalogCursor:
                 "customer table",
             )
         ]
+
+    def execute(self, sql, params=None):
+        self.calls.append(("execute", sql, params))
+        if self.raise_on_execute:
+            raise pyodbc.Error("view definition failure")
+        return self
+
+    def fetchone(self):
+        return self.execute_result
 
     def columns(self, **kwargs):
         self.calls.append(("columns", kwargs))
@@ -94,6 +119,106 @@ class CatalogCursor:
             )
         ]
 
+    def statistics(self, **kwargs):
+        self.calls.append(("statistics", kwargs))
+        return [
+            CatalogRow("cat", "public", "customers", None, None, None, 0),
+            CatalogRow(
+                "cat",
+                "public",
+                "customers",
+                True,
+                None,
+                "customers_name_idx",
+                3,
+                1,
+                "last_name",
+                "A",
+                100,
+                4,
+                None,
+            ),
+            CatalogRow(
+                "cat",
+                "public",
+                "customers",
+                True,
+                None,
+                "customers_name_idx",
+                3,
+                2,
+                "first_name",
+                "D",
+                100,
+                4,
+                None,
+            ),
+        ]
+
+    def rowIdColumns(self, **kwargs):
+        self.calls.append(("rowIdColumns", kwargs))
+        return [CatalogRow(1, "id", 4, "integer", 10, None, 0, 1)]
+
+    def rowVerColumns(self, **kwargs):
+        self.calls.append(("rowVerColumns", kwargs))
+        return [CatalogRow(2, "updated_at", 93, "timestamp", 26, None, 6, 1)]
+
+    def getTypeInfo(self, data_type=None):
+        self.calls.append(("getTypeInfo", data_type))
+        return [
+            CatalogRow(
+                "varchar",
+                12,
+                255,
+                "'",
+                "'",
+                "length",
+                1,
+                True,
+                3,
+                None,
+                False,
+                False,
+                "varchar",
+                None,
+                None,
+                12,
+                None,
+                None,
+                None,
+            )
+        ]
+
+    def procedures(self, **kwargs):
+        self.calls.append(("procedures", kwargs))
+        return [CatalogRow("cat", "public", "get_customer", 1, 0, 1, "demo", 1)]
+
+    def procedureColumns(self, **kwargs):
+        self.calls.append(("procedureColumns", kwargs))
+        return [
+            CatalogRow(
+                "cat",
+                "public",
+                "get_customer",
+                "customer_id",
+                1,
+                4,
+                "integer",
+                10,
+                None,
+                0,
+                10,
+                0,
+                "input id",
+                None,
+                4,
+                None,
+                None,
+                1,
+                "NO",
+            )
+        ]
+
     def close(self):
         self.closed = True
 
@@ -105,6 +230,9 @@ class CatalogConnection:
 
     def cursor(self):
         return self.cursor_obj
+
+    def getinfo(self, info_type):
+        return "PostgreSQL"
 
     def close(self):
         self.closed = True
@@ -162,6 +290,19 @@ class OracleCatalogConnection:
 
     def getinfo(self, info_type):
         return "Oracle"
+
+
+class ProcedureColumnsNoColumnKeywordCursor(CatalogCursor):
+    def procedureColumns(self, **kwargs):
+        if "column" in kwargs:
+            raise TypeError("unexpected keyword argument 'column'")
+        return super().procedureColumns(**kwargs)
+
+
+class BlankProcedureCountCursor(CatalogCursor):
+    def procedures(self, **kwargs):
+        self.calls.append(("procedures", kwargs))
+        return [CatalogRow("cat", "public", "nvl", "", "", "", "demo", 2)]
 
 
 class IntrospectionProviderTests(unittest.TestCase):
@@ -236,6 +377,75 @@ class IntrospectionProviderTests(unittest.TestCase):
                 )
             ],
         )
+        self.assertTrue(cursor.closed)
+
+    def test_views_normalizes_rows_and_passes_parameters(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.views(
+            CatalogConnection(cursor),
+            schema="public",
+            view="customer_view",
+        )
+
+        self.assertEqual(
+            result,
+            [
+                {
+                    "catalog": "cat",
+                    "schema": "public",
+                    "name": "customer_view",
+                    "type": "VIEW",
+                    "remarks": "customer view",
+                }
+            ],
+        )
+        self.assertEqual(
+            cursor.calls,
+            [
+                (
+                    "tables",
+                    {
+                        "schema": "public",
+                        "table": "customer_view",
+                        "tableType": "VIEW",
+                    },
+                )
+            ],
+        )
+        self.assertTrue(cursor.closed)
+
+    def test_views_can_include_best_effort_definitions(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.views(
+            CatalogConnection(cursor),
+            schema="public",
+            view="customer_view",
+            include_definitions=True,
+        )
+
+        self.assertEqual(result[0]["definition"], "select id, name from customers")
+        self.assertEqual(cursor.calls[0][0], "tables")
+        self.assertEqual(cursor.calls[1][0], "execute")
+        self.assertIn("information_schema.views", cursor.calls[1][1])
+        self.assertEqual(cursor.calls[1][2], ["customer_view", "public"])
+        self.assertTrue(cursor.closed)
+
+    def test_view_definition_returns_none_when_lookup_fails(self):
+        cursor = CatalogCursor()
+        cursor.raise_on_execute = True
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.view_definition(
+            CatalogConnection(cursor),
+            view="customer_view",
+            schema="public",
+        )
+
+        self.assertIsNone(result)
         self.assertTrue(cursor.closed)
 
     def test_primary_keys_normalizes_rows_and_passes_parameters(self):
@@ -321,6 +531,217 @@ class IntrospectionProviderTests(unittest.TestCase):
         )
         self.assertTrue(cursor.closed)
 
+    def test_indexes_normalizes_rows_and_passes_parameters(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.indexes(
+            CatalogConnection(cursor),
+            table="customers",
+            schema="public",
+            unique=True,
+            quick=False,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["catalog"], "cat")
+        self.assertEqual(result[0]["schema"], "public")
+        self.assertEqual(result[0]["table"], "customers")
+        self.assertEqual(result[0]["name"], "customers_name_idx")
+        self.assertFalse(result[0]["unique"])
+        self.assertEqual(result[0]["type"], 3)
+        self.assertEqual(result[0]["type_name"], "other")
+        self.assertEqual(
+            result[0]["columns"],
+            [
+                {"name": "last_name", "ordinal": 1, "sort": "A"},
+                {"name": "first_name", "ordinal": 2, "sort": "D"},
+            ],
+        )
+        self.assertEqual(
+            result[0]["summary"],
+            "INDEX customers_name_idx on customers(last_name, first_name)",
+        )
+        self.assertEqual(
+            result[0]["sql_preview"],
+            "CREATE INDEX customers_name_idx ON customers (last_name ASC, first_name DESC)",
+        )
+        self.assertEqual(
+            cursor.calls,
+            [
+                (
+                    "statistics",
+                    {
+                        "table": "customers",
+                        "schema": "public",
+                        "unique": True,
+                        "quick": False,
+                    },
+                )
+            ],
+        )
+        self.assertTrue(cursor.closed)
+
+    def test_index_summary_and_preview_do_not_crash_on_incomplete_input(self):
+        index = {"columns": [{"name": None}, {}]}
+
+        self.assertEqual(index_summary(index), "INDEX <unnamed> on <unknown table>()")
+        self.assertEqual(
+            index_sql_preview(index),
+            "/* index preview unavailable: no indexed columns reported */",
+        )
+
+    def test_row_id_columns_normalizes_rows_and_passes_parameters(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.row_id_columns(
+            CatalogConnection(cursor),
+            table="customers",
+            schema="public",
+            nullable=False,
+        )
+
+        self.assertEqual(result[0]["name"], "id")
+        self.assertEqual(result[0]["scope_name"], "transaction")
+        self.assertEqual(result[0]["pseudo_column_name"], "not_pseudo")
+        self.assertEqual(
+            cursor.calls,
+            [
+                (
+                    "rowIdColumns",
+                    {"table": "customers", "schema": "public", "nullable": False},
+                )
+            ],
+        )
+        self.assertTrue(cursor.closed)
+
+    def test_row_version_columns_normalizes_rows_and_passes_parameters(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.row_version_columns(
+            CatalogConnection(cursor),
+            table="customers",
+            schema="public",
+            nullable=True,
+        )
+
+        self.assertEqual(result[0]["name"], "updated_at")
+        self.assertEqual(result[0]["type_name"], "timestamp")
+        self.assertEqual(
+            cursor.calls,
+            [
+                (
+                    "rowVerColumns",
+                    {"table": "customers", "schema": "public", "nullable": True},
+                )
+            ],
+        )
+        self.assertTrue(cursor.closed)
+
+    def test_type_info_normalizes_rows_and_passes_parameter(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.type_info(CatalogConnection(cursor), data_type=12)
+
+        self.assertEqual(result[0]["type_name"], "varchar")
+        self.assertEqual(result[0]["data_type"], 12)
+        self.assertEqual(result[0]["size"], 255)
+        self.assertEqual(cursor.calls, [("getTypeInfo", 12)])
+        self.assertTrue(cursor.closed)
+
+    def test_procedures_normalizes_rows_and_passes_parameters(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.procedures(
+            CatalogConnection(cursor),
+            procedure="get_customer",
+            schema="public",
+        )
+
+        self.assertEqual(result[0]["schema"], "public")
+        self.assertEqual(result[0]["name"], "get_customer")
+        self.assertEqual(result[0]["procedure_type_name"], "procedure")
+        self.assertEqual(
+            result[0]["summary"],
+            "PROCEDURE public.get_customer (inputs=1, outputs=0, result_sets=1)",
+        )
+        self.assertEqual(result[0]["call_preview"], "CALL public.get_customer(?)")
+        self.assertEqual(
+            cursor.calls,
+            [("procedures", {"procedure": "get_customer", "schema": "public"})],
+        )
+        self.assertTrue(cursor.closed)
+
+    def test_procedure_summary_omits_blank_count_metadata(self):
+        cursor = BlankProcedureCountCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.procedures(CatalogConnection(cursor), schema="public")
+
+        self.assertEqual(result[0]["summary"], "FUNCTION public.nvl")
+        self.assertEqual(result[0]["call_preview"], "CALL public.nvl(...)")
+        self.assertIsNone(result[0]["num_input_params"])
+        self.assertTrue(cursor.closed)
+
+    def test_procedure_columns_normalizes_rows_and_passes_parameters(self):
+        cursor = CatalogCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.procedure_columns(
+            CatalogConnection(cursor),
+            procedure="get_customer",
+            schema="public",
+            column="customer_id",
+        )
+
+        self.assertEqual(result[0]["procedure"], "get_customer")
+        self.assertEqual(result[0]["name"], "customer_id")
+        self.assertEqual(result[0]["column_type_name"], "IN")
+        self.assertEqual(result[0]["type_name"], "integer")
+        self.assertEqual(result[0]["ordinal"], 1)
+        self.assertEqual(
+            cursor.calls,
+            [
+                (
+                    "procedureColumns",
+                    {
+                        "procedure": "get_customer",
+                        "schema": "public",
+                        "column": "customer_id",
+                    },
+                )
+            ],
+        )
+        self.assertTrue(cursor.closed)
+
+    def test_procedure_columns_filters_when_driver_lacks_column_keyword(self):
+        cursor = ProcedureColumnsNoColumnKeywordCursor()
+        provider = ODBCIntrospectionProvider()
+
+        result = provider.procedure_columns(
+            CatalogConnection(cursor),
+            procedure="get_customer",
+            schema="public",
+            column="customer_id",
+        )
+
+        self.assertEqual(result[0]["name"], "customer_id")
+        self.assertEqual(
+            cursor.calls,
+            [("procedureColumns", {"procedure": "get_customer", "schema": "public"})],
+        )
+        self.assertTrue(cursor.closed)
+
+    def test_procedure_helpers_do_not_crash_on_incomplete_input(self):
+        procedure = {}
+
+        self.assertEqual(procedure_summary(procedure), "PROCEDURE unknown_procedure")
+        self.assertEqual(procedure_call_preview(procedure), "CALL unknown_procedure(...)")
+
     def test_cursor_is_closed_when_catalog_call_fails(self):
         cursor = CatalogCursor()
         cursor.raise_on_tables = True
@@ -388,9 +809,26 @@ class DatabaseConnectionIntrospectionTests(unittest.TestCase):
         ):
             connection = OpenODBCDatabaseConnection("dsn")
             self.assertEqual(connection.tables()[0]["name"], "customers")
+            self.assertEqual(connection.views()[0]["name"], "customer_view")
+            self.assertEqual(
+                connection.view_definition("customer_view", schema="public"),
+                "select id, name from customers",
+            )
             self.assertEqual(
                 connection.primary_key_columns("customers"),
                 ["id"],
+            )
+            self.assertEqual(connection.indexes("customers")[0]["name"], "customers_name_idx")
+            self.assertEqual(connection.row_id_columns("customers")[0]["name"], "id")
+            self.assertEqual(
+                connection.row_version_columns("customers")[0]["name"],
+                "updated_at",
+            )
+            self.assertEqual(connection.type_info(12)[0]["type_name"], "varchar")
+            self.assertEqual(connection.procedures()[0]["name"], "get_customer")
+            self.assertEqual(
+                connection.procedure_columns("get_customer")[0]["name"],
+                "customer_id",
             )
             self.assertEqual(
                 connection.referenced_by("customers")[0]["fk_table"],
@@ -407,7 +845,24 @@ class DatabaseConnectionIntrospectionTests(unittest.TestCase):
             connection = OpenODBCConnection("test", "Test", "dsn")
             self.assertEqual(connection.table_names(), ["customers"])
             self.assertEqual(connection.column_names("customers"), ["id"])
+            self.assertEqual(connection.views()[0]["name"], "customer_view")
+            self.assertEqual(
+                connection.view_definition("customer_view", schema="public"),
+                "select id, name from customers",
+            )
             self.assertEqual(connection.primary_key_columns("customers"), ["id"])
+            self.assertEqual(connection.indexes("customers")[0]["name"], "customers_name_idx")
+            self.assertEqual(connection.row_id_columns("customers")[0]["name"], "id")
+            self.assertEqual(
+                connection.row_version_columns("customers")[0]["name"],
+                "updated_at",
+            )
+            self.assertEqual(connection.type_info(12)[0]["type_name"], "varchar")
+            self.assertEqual(connection.procedures()[0]["name"], "get_customer")
+            self.assertEqual(
+                connection.procedure_columns("get_customer")[0]["name"],
+                "customer_id",
+            )
             self.assertEqual(
                 connection.referenced_by("customers")[0]["fk_table"],
                 "orders",
