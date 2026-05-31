@@ -89,6 +89,8 @@ Products.OpenODBCDA provides:
 - run `select 1` from the ZMI and Z SQL Methods
 - map common ODBC result types to ZRDB metadata for numbers, dates, times,
   text, and null-capable columns
+- expose normalized ODBC catalog metadata for table, column, primary key, and
+  foreign key introspection
 - optionally use a per-connector connection pool without a global adapter-level
   pool count limit
 
@@ -182,6 +184,131 @@ Z SQL Methods should therefore use SQL supported by the selected target
 database. For example, Oracle-specific SQL such as `NVL`, `SYSDATE`, `ROWNUM`,
 or `DUAL` must be changed by the application author when moving the query to a
 different database such as Microsoft SQL Server, PostgreSQL, MariaDB, or SQLite.
+
+## ODBC Catalog Introspection
+
+OpenODBCDA exposes a small ODBC catalog metadata surface for Zope products,
+ZMI helpers, and wizard-style tools. This is not an ORM, not a SQL dialect
+translator, and not a table abstraction layer. It is a thin normalized wrapper
+around the ODBC catalog methods provided by pyodbc.
+
+Available methods on an `OpenODBC DB Connector` are:
+
+```python
+connection.version()
+connection.tables(schema=None, table=None, table_type=None)
+connection.columns(table, schema=None, column=None)
+connection.primary_keys(table, schema=None)
+connection.foreign_keys(table=None, schema=None)
+```
+
+`connection.version()` returns the installed Products.OpenODBCDA adapter
+version. The same value is also shown in the connector's ZMI Status tab.
+
+The methods return lists of plain Python dictionaries rather than raw pyodbc
+rows. There are also two small convenience aliases:
+
+```python
+connection.table_names(schema=None, table=None, table_type=None)
+connection.column_names(table, schema=None, column=None)
+```
+
+Example use from product code or a Zope Python Script:
+
+```python
+db = context.my_odbc_connection
+schema = "MY_SCHEMA"
+
+tables = db.tables(schema=schema, table_type="TABLE")
+table_by_name = {
+    table["name"].upper(): table
+    for table in tables
+}
+
+for table in tables:
+    print(table["schema"], table["name"], table["type"])
+
+if "CUSTOMERS" not in table_by_name:
+    raise ValueError("CUSTOMERS was not found in schema %r" % schema)
+
+table_name = table_by_name["CUSTOMERS"]["name"]
+
+columns = db.columns(table_name, schema=schema)
+for column in columns:
+    print(column["ordinal"], column["name"], column["type_name"], column["nullable"])
+
+primary_key_columns = [
+    key["column"]
+    for key in db.primary_keys(table_name, schema=schema)
+]
+print("primary key columns: " + str(primary_key_columns))
+
+foreign_keys = db.foreign_keys(table_name, schema=schema)
+if len(foreign_keys) > 0:
+    for key in foreign_keys:
+        print(
+            key["fk_table"],
+            key["fk_column"],
+            "->",
+            key["pk_table"],
+            key["pk_column"],
+        )
+else:
+    print("No foreign keys")
+```
+
+For simple wizards, the name aliases are often enough:
+
+```python
+schema = "MY_SCHEMA"
+
+for table_name in db.table_names(schema=schema, table_type="TABLE"):
+    column_names = db.column_names(table_name, schema=schema)
+    print(table_name, column_names)
+```
+
+The dictionary keys returned by OpenODBCDA are normalized, so callers can work
+with a stable shape across databases. The actual metadata content still comes
+from the selected ODBC driver and database. For example, schema names,
+identifier casing, type names, remarks, and key metadata can differ between
+SQLite, PostgreSQL, MariaDB/MySQL, Oracle, SQL Server, and FreeTDS.
+Set `schema` to the schema name reported by your database and ODBC driver; for
+example, PostgreSQL commonly uses `public`, while Oracle commonly reports
+unquoted owner/schema names in uppercase.
+
+Internally these call the ODBC catalog APIs:
+
+- `cursor.tables(...)`
+- `cursor.columns(...)`
+- `cursor.primaryKeys(...)`
+- `cursor.foreignKeys(...)`
+
+The default implementation is intentionally small and lives behind an internal
+introspection provider. Normal installations use the default pyodbc/ODBC
+provider. The provider boundary is there as a practical extension point: if a
+rare or old ODBC driver returns unusual catalog rows, incomplete key metadata,
+or driver-specific values that need cleanup, a later version can add a small
+driver-specific provider without changing the public Zope API or adding an ORM
+or SQL dialect layer.
+
+Oracle is the first practical example of this boundary. Some Oracle ODBC
+installations can expose tables and primary keys through the standard ODBC
+catalog calls while failing on `SQLColumns`. OpenODBCDA therefore keeps the
+standard `cursor.columns(...)` call as the first attempt, but can fall back to
+Oracle catalog views for column metadata when that specific catalog call fails.
+
+ODBC catalog support varies between drivers. Table and column metadata is
+usually available, while primary key and foreign key metadata can be incomplete
+or missing on older drivers, lightweight drivers, file-based databases, or
+databases where permissions hide catalog information.
+
+The introspection surface has been designed for tested targets including
+SQLite, PostgreSQL, MariaDB/MySQL, Oracle, Microsoft SQL Server, and SQL Server
+through FreeTDS. Wizard products should still provide a manual fallback when
+metadata is missing or incomplete.
+
+OpenODBCDA still sends application SQL unchanged. Introspection helps discover
+tables and columns; it does not make SQL portable between databases.
 
 ## Connection Examples
 

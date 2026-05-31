@@ -26,6 +26,7 @@ from .db import normalize_pool_size
 from .diagnostics import diagnostics_passed
 from .diagnostics import run_connection_diagnostics
 from .diagnostics import run_type_mapping_diagnostics
+from ._version import __version__
 
 
 class OpenODBCConnection(Connection):
@@ -273,6 +274,11 @@ class OpenODBCConnection(Connection):
     def masked_connection_string(self):
         return mask_connection_string(self.effective_connection_string())
 
+    security.declareProtected(view_management_screens, "version")
+    def version(self):
+        """Return the installed Products.OpenODBCDA package version."""
+        return __version__
+
     security.declareProtected(view_management_screens, "masked_raw_connection_string")
     def masked_raw_connection_string(self):
         return mask_connection_string(self.raw_connection_string)
@@ -376,6 +382,54 @@ class OpenODBCConnection(Connection):
             return 0
         return connection.in_use_pool_size()
 
+    security.declareProtected(view_management_screens, "tables")
+    def tables(self, schema=None, table=None, table_type=None):
+        """Return normalized ODBC table catalog metadata."""
+        return self._database_connection().tables(
+            schema=schema,
+            table=table,
+            table_type=table_type,
+        )
+
+    security.declareProtected(view_management_screens, "columns")
+    def columns(self, table, schema=None, column=None):
+        """Return normalized ODBC column catalog metadata."""
+        return self._database_connection().columns(
+            table,
+            schema=schema,
+            column=column,
+        )
+
+    security.declareProtected(view_management_screens, "primary_keys")
+    def primary_keys(self, table, schema=None):
+        """Return normalized ODBC primary key catalog metadata."""
+        return self._database_connection().primary_keys(table, schema=schema)
+
+    security.declareProtected(view_management_screens, "foreign_keys")
+    def foreign_keys(self, table=None, schema=None):
+        """Return normalized ODBC foreign key catalog metadata."""
+        return self._database_connection().foreign_keys(table=table, schema=schema)
+
+    security.declareProtected(view_management_screens, "table_names")
+    def table_names(self, schema=None, table=None, table_type=None):
+        """Return table names from ODBC table catalog metadata."""
+        return [
+            item["name"]
+            for item in self.tables(
+                schema=schema,
+                table=table,
+                table_type=table_type,
+            )
+        ]
+
+    security.declareProtected(view_management_screens, "column_names")
+    def column_names(self, table, schema=None, column=None):
+        """Return column names from ODBC column catalog metadata."""
+        return [
+            item["name"]
+            for item in self.columns(table, schema=schema, column=column)
+        ]
+
     security.declareProtected(test_database_connections, "type_mapping_diagnostics")
     def type_mapping_diagnostics(self):
         """Return internal OpenODBCDA type-mapping diagnostic results."""
@@ -408,6 +462,13 @@ class OpenODBCConnection(Connection):
         )
         self._v_connected = DateTime()
         return self
+
+    def _database_connection(self):
+        connection = getattr(self, "_v_database_connection", None)
+        if connection is None:
+            self.connect()
+            connection = self._v_database_connection
+        return connection
 
 
 InitializeClass(OpenODBCConnection)

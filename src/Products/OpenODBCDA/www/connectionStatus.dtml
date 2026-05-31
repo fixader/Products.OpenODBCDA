@@ -36,6 +36,10 @@ Developed in collaboration with ChatGPT/Codex.
         <td>&dtml-title;</td>
       </tr>
       <tr>
+        <th>Adapter version</th>
+        <td><dtml-var version></td>
+      </tr>
+      <tr>
         <th>Connection string</th>
         <td><code><dtml-var masked_connection_string html_quote></code></td>
       </tr>

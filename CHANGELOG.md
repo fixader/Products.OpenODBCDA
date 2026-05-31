@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.1.3 - ODBC catalog introspection
+
+### Added
+
+- Added a small public introspection API for ODBC catalog metadata:
+  `tables()`, `columns()`, `primary_keys()`, and `foreign_keys()`.
+- Added simple convenience aliases `table_names()` and `column_names()` for
+  wizard-style callers that only need names.
+- Added `version()` on the Zope connector object and show the adapter version
+  in the ZMI Status tab.
+- Catalog rows are normalized into plain Python dictionaries instead of
+  exposing raw pyodbc row objects.
+- Added an internal default introspection provider based on pyodbc catalog
+  methods, leaving room for later driver-specific providers without adding an
+  ORM or SQL dialect layer.
+- Added an Oracle column metadata fallback for Oracle ODBC installations where
+  table and primary key catalog calls work but `SQLColumns` fails.
+- Added unit tests for metadata normalization, catalog parameter forwarding,
+  and cursor cleanup on both success and failure.
+- Documented the introspection surface and driver support expectations in the
+  README.
+
 ## 0.1.2 - Lost connection recovery
 
 ### Added

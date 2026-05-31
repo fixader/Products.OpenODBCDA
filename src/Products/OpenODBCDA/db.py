@@ -31,10 +31,19 @@ class ResultOptions:
 class OpenODBCDatabaseConnection:
     """ODBC connection pool used by the persistent Zope object."""
 
-    def __init__(self, connection_string, pool_size=1, result_options=None):
+    def __init__(
+        self,
+        connection_string,
+        pool_size=1,
+        result_options=None,
+        introspection_provider=None,
+    ):
         self.connection_string = connection_string
         self.pool_size = normalize_pool_size(pool_size)
         self.result_options = result_options or ResultOptions()
+        self.introspection_provider = (
+            introspection_provider or ODBCIntrospectionProvider()
+        )
         self._condition = Condition()
         self._idle = []
         self._opened = 0
@@ -85,6 +94,52 @@ class OpenODBCDatabaseConnection:
                 raise
             finally:
                 self._release(connection, discard=discard)
+
+    def tables(self, schema=None, table=None, table_type=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.tables(
+                connection,
+                schema=schema,
+                table=table,
+                table_type=table_type,
+            )
+        finally:
+            self._release(connection)
+
+    def columns(self, table, schema=None, column=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.columns(
+                connection,
+                table=table,
+                schema=schema,
+                column=column,
+            )
+        finally:
+            self._release(connection)
+
+    def primary_keys(self, table, schema=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.primary_keys(
+                connection,
+                table=table,
+                schema=schema,
+            )
+        finally:
+            self._release(connection)
+
+    def foreign_keys(self, table=None, schema=None):
+        connection = self._acquire()
+        try:
+            return self.introspection_provider.foreign_keys(
+                connection,
+                table=table,
+                schema=schema,
+            )
+        finally:
+            self._release(connection)
 
     def current_pool_size(self):
         with self._condition:
@@ -184,6 +239,237 @@ def _query(connection, sql, max_rows=999999, result_options=None):
         return items, [tuple(row) for row in rows]
     finally:
         cursor.close()
+
+
+class ODBCIntrospectionProvider:
+    """Default ODBC catalog metadata provider."""
+
+    def tables(self, connection, schema=None, table=None, table_type=None):
+        cursor = connection.cursor()
+        try:
+            rows = cursor.tables(
+                schema=schema,
+                table=table,
+                tableType=table_type,
+            )
+            return [_normalize_table_row(row) for row in rows]
+        finally:
+            cursor.close()
+
+    def columns(self, connection, table, schema=None, column=None):
+        cursor = connection.cursor()
+        use_oracle_fallback = False
+        try:
+            rows = cursor.columns(
+                schema=schema,
+                table=table,
+                column=column,
+            )
+            columns = [_normalize_column_row(row) for row in rows]
+            if not columns and _is_oracle_connection(connection):
+                use_oracle_fallback = True
+            else:
+                return columns
+        except pyodbc.Error:
+            if not _is_oracle_connection(connection):
+                raise
+            use_oracle_fallback = True
+        finally:
+            cursor.close()
+        if use_oracle_fallback:
+            return self._oracle_columns(connection, table, schema=schema, column=column)
+
+    def _oracle_columns(self, connection, table, schema=None, column=None):
+        cursor = connection.cursor()
+        try:
+            where = ["upper(c.table_name) = upper(?)"]
+            params = [table]
+            if schema:
+                where.append("upper(c.owner) = upper(?)")
+                params.append(schema)
+            if column:
+                where.append("upper(c.column_name) = upper(?)")
+                params.append(column)
+            sql = """
+                select
+                    c.owner as table_schem,
+                    c.table_name,
+                    c.column_name,
+                    c.data_type as type_name,
+                    c.data_length,
+                    c.char_length,
+                    c.data_precision,
+                    c.data_scale,
+                    c.nullable,
+                    c.column_id,
+                    cc.comments as remarks
+                from all_tab_columns c
+                left join all_col_comments cc
+                    on cc.owner = c.owner
+                    and cc.table_name = c.table_name
+                    and cc.column_name = c.column_name
+                where {where}
+                order by c.owner, c.table_name, c.column_id
+            """.format(where=" and ".join(where))
+            rows = cursor.execute(sql, params)
+            return [_normalize_oracle_column_row(row) for row in rows]
+        finally:
+            cursor.close()
+
+    def primary_keys(self, connection, table, schema=None):
+        cursor = connection.cursor()
+        try:
+            rows = cursor.primaryKeys(schema=schema, table=table)
+            return [_normalize_primary_key_row(row) for row in rows]
+        finally:
+            cursor.close()
+
+    def foreign_keys(self, connection, table=None, schema=None):
+        cursor = connection.cursor()
+        try:
+            rows = cursor.foreignKeys(foreignTable=table, foreignSchema=schema)
+            return [_normalize_foreign_key_row(row) for row in rows]
+        finally:
+            cursor.close()
+
+
+def _normalize_table_row(row):
+    return {
+        "catalog": _row_value(row, "table_cat", 0),
+        "schema": _row_value(row, "table_schem", 1),
+        "name": _row_value(row, "table_name", 2),
+        "type": _row_value(row, "table_type", 3),
+        "remarks": _row_value(row, "remarks", 4),
+    }
+
+
+def _normalize_column_row(row):
+    return {
+        "catalog": _row_value(row, "table_cat", 0),
+        "schema": _row_value(row, "table_schem", 1),
+        "table": _row_value(row, "table_name", 2),
+        "name": _row_value(row, "column_name", 3),
+        "data_type": _row_value(row, "data_type", 4),
+        "type_name": _row_value(row, "type_name", 5),
+        "size": _row_value(row, "column_size", 6),
+        "decimal_digits": _row_value(row, "decimal_digits", 8),
+        "nullable": _row_value(row, "nullable", 10),
+        "ordinal": _row_value(row, "ordinal_position", 16),
+        "default": _row_value(row, "column_def", 12),
+        "column_default": _row_value(row, "column_def", 12),
+        "remarks": _row_value(row, "remarks", 11),
+    }
+
+
+def _normalize_oracle_column_row(row):
+    type_name = _row_value(row, "type_name")
+    precision = _row_value(row, "data_precision")
+    char_length = _row_value(row, "char_length")
+    data_length = _row_value(row, "data_length")
+    size = precision or char_length or data_length
+    return {
+        "catalog": None,
+        "schema": _row_value(row, "table_schem"),
+        "table": _row_value(row, "table_name"),
+        "name": _row_value(row, "column_name"),
+        "data_type": _oracle_type_to_odbc_type(type_name),
+        "type_name": type_name,
+        "size": _int_or_none(size),
+        "decimal_digits": _int_or_none(_row_value(row, "data_scale")),
+        "nullable": 1 if _row_value(row, "nullable") == "Y" else 0,
+        "ordinal": _int_or_none(_row_value(row, "column_id")),
+        "default": None,
+        "column_default": None,
+        "remarks": _row_value(row, "remarks"),
+    }
+
+
+def _normalize_primary_key_row(row):
+    return {
+        "catalog": _row_value(row, "table_cat", 0),
+        "schema": _row_value(row, "table_schem", 1),
+        "table": _row_value(row, "table_name", 2),
+        "column": _row_value(row, "column_name", 3),
+        "key_sequence": _row_value(row, "key_seq", 4),
+        "pk_name": _row_value(row, "pk_name", 5),
+    }
+
+
+def _normalize_foreign_key_row(row):
+    return {
+        "pk_schema": _row_value(row, "pktable_schem", 1),
+        "pk_table": _row_value(row, "pktable_name", 2),
+        "pk_column": _row_value(row, "pkcolumn_name", 3),
+        "fk_schema": _row_value(row, "fktable_schem", 5),
+        "fk_table": _row_value(row, "fktable_name", 6),
+        "fk_column": _row_value(row, "fkcolumn_name", 7),
+        "key_sequence": _row_value(row, "key_seq", 8),
+        "fk_name": _row_value(row, "fk_name", 11),
+        "pk_name": _row_value(row, "pk_name", 12),
+        "update_rule": _row_value(row, "update_rule", 9),
+        "delete_rule": _row_value(row, "delete_rule", 10),
+    }
+
+
+def _row_value(row, name, index=None, default=None):
+    for candidate in (name, name.upper()):
+        try:
+            return getattr(row, candidate)
+        except AttributeError:
+            pass
+    if isinstance(row, dict):
+        for candidate in (name, name.upper()):
+            if candidate in row:
+                return row[candidate]
+    if index is not None:
+        try:
+            return row[index]
+        except (IndexError, KeyError, TypeError):
+            pass
+    return default
+
+
+def _is_oracle_connection(connection):
+    for info_type in (getattr(pyodbc, "SQL_DBMS_NAME", None), getattr(pyodbc, "SQL_DRIVER_NAME", None)):
+        if info_type is None:
+            continue
+        try:
+            value = connection.getinfo(info_type)
+        except (AttributeError, pyodbc.Error):
+            continue
+        if "oracle" in str(value).lower():
+            return True
+    return False
+
+
+def _oracle_type_to_odbc_type(type_name):
+    normalized = str(type_name or "").upper()
+    if normalized.startswith("TIMESTAMP"):
+        return 93
+    if normalized in {"CHAR", "VARCHAR2", "VARCHAR", "NCHAR", "NVARCHAR2"}:
+        return 12
+    if normalized in {"CLOB", "NCLOB", "LONG"}:
+        return -1
+    if normalized in {"NUMBER", "NUMERIC", "DECIMAL"}:
+        return 2
+    if normalized in {"BINARY_FLOAT", "FLOAT"}:
+        return 6
+    if normalized in {"BINARY_DOUBLE", "DOUBLE PRECISION"}:
+        return 8
+    if normalized == "DATE":
+        return 93
+    if normalized in {"RAW", "BLOB", "LONG RAW"}:
+        return -3
+    return None
+
+
+def _int_or_none(value):
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return value
 
 
 def _close_connection(connection):
