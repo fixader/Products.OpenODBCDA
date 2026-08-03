@@ -10,6 +10,18 @@ Developed in collaboration with ChatGPT/Codex.
 
 An open ODBC Database Adapter for Zope 5 and Zope 6.
 
+## Production Status
+
+Products.OpenODBCDA is production-stable software. It is used daily across
+three production servers without known adapter errors. One deployment serves
+158 customer sites under sustained heavy load, with each site using its own
+database connection.
+
+Unlike the previous connector used in that deployment, Products.OpenODBCDA
+does not impose a built-in adapter-wide 50-connection cap. Practical limits
+still depend on the Zope deployment, operating system, ODBC driver, database
+server, connection-pool settings, and available resources.
+
 Products.OpenODBCDA adds an `OpenODBC DB Connector` object to the Zope
 Management Interface (ZMI). The connection can then be used by Z SQL Methods
 from `Products.ZSQLMethods`.

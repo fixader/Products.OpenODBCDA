@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0 - First stable production release
+
+### Changed
+
+- Marked Products.OpenODBCDA as Production/Stable after sustained daily
+  production use across three servers without known adapter errors.
+- Documented a high-load deployment serving 158 customer sites, with each site
+  using its own database connection.
+- Declared the existing public connector and introspection interfaces stable.
+
+### Notes
+
+- Products.OpenODBCDA has no built-in adapter-wide 50-connection cap.
+  Practical connection limits are still determined by the Zope deployment,
+  operating system, ODBC driver, database server, and available resources.
+
 ## 0.2.0 - Extended catalog introspection
 
 ### Added
