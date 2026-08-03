@@ -36,7 +36,7 @@ setup(
         "Issues": "https://github.com/fixader/Products.OpenODBCDA/issues",
     },
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 5 - Production/Stable",
         "Environment :: Web Environment",
         "Framework :: Zope",
         "Framework :: Zope :: 5",
