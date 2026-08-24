@@ -71,6 +71,13 @@ Additional verification has been done on:
 
 - Python 3.13.15
 - Zope 6.2
+- Plone 6.2.1 with Classic UI on Python 3.14.4, using a ZMI-created
+  `OpenODBC DB Connector` and `Z SQL Method` against PostgreSQL through ODBC
+
+Products.OpenODBCDA is a Zope database adapter and does not depend on Plone
+internals. Plone installations running on a supported Zope/Python platform are
+expected to work in the same way, but Plone 6.2.1 Classic UI is the Plone
+target explicitly verified so far.
 
 The package has also been verified in an existing buildout-based Zope 5
 installation:

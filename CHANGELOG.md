@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 - Plone verification documentation
+
+### Documentation
+
+- Documented verification with Plone 6.2.1 Classic UI on Python 3.14.4,
+  using a ZMI-created OpenODBC connector and Z SQL Method against PostgreSQL
+  through ODBC.
+
 ## 1.0.0 - First stable production release
 
 ### Changed
