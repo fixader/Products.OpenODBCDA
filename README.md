@@ -28,8 +28,8 @@ from `Products.ZSQLMethods`.
 
 ## Installation
 
-Products.OpenODBCDA is intended to install like a normal Python package once it
-has been published.
+Products.OpenODBCDA is published on PyPI and installs like a normal Python
+package.
 
 For Zope 6 or other pip-based installations:
 
@@ -54,9 +54,7 @@ bin/buildout
 bin/Instance restart
 ```
 
-Until the package is published to PyPI, install from a local checkout or from
-the GitHub repository after it has been made public. See
-[INSTALL_ZOPE.md](INSTALL_ZOPE.md) for detailed installation instructions,
+See [INSTALL_ZOPE.md](INSTALL_ZOPE.md) for detailed installation instructions,
 ODBC driver setup, and tested database examples.
 
 ## Tested Targets
@@ -68,6 +66,11 @@ The main lab environment has been tested on:
 - Zope 6.1
 - Products.ZSQLMethods 5.1
 - pyodbc 5.3.0
+
+Additional verification has been done on:
+
+- Python 3.13.15
+- Zope 6.2
 
 The package has also been verified in an existing buildout-based Zope 5
 installation:
