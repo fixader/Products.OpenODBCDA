@@ -25,7 +25,7 @@ def read_version():
 setup(
     name="Products.OpenODBCDA",
     version=read_version(),
-    description="An open ODBC Database Adapter for Zope 5 and Zope 6.",
+    description="An open ODBC Database Adapter for Zope 5, Zope 6 and Plone.",
     long_description=(ROOT / "README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
     license="MIT",

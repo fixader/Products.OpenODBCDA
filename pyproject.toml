@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "Products.OpenODBCDA"
 dynamic = ["version"]
-description = "An open ODBC Database Adapter for Zope 5 and Zope 6."
+description = "An open ODBC Database Adapter for Zope 5, Zope 6 and Plone."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -25,6 +25,9 @@ dependencies = [
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
+    "Framework :: Plone",
+    "Framework :: Plone :: 6.2",
+    "Framework :: Plone :: Addon",
     "Framework :: Zope",
     "Framework :: Zope :: 5",
     "Framework :: Zope :: 6",

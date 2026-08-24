@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2 - Plone package metadata
+
+### Documentation
+
+- Updated the README title and package description to name Plone alongside
+  Zope 5 and Zope 6.
+- Added PyPI Trove classifiers for Plone, Plone 6.2, and Plone add-ons.
+- No runtime code changes are included in this release.
+
 ## 1.0.1 - Plone verification documentation
 
 ### Documentation

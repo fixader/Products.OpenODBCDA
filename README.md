@@ -6,9 +6,9 @@ provided that copyright and permission notices are included.
 See LICENSE and NOTICE for details.
 Developed in collaboration with ChatGPT/Codex.
 -->
-# Products.OpenODBCDA for Zope 5 and Zope 6
+# Products.OpenODBCDA for Zope 5, Zope 6 and Plone
 
-An open ODBC Database Adapter for Zope 5 and Zope 6.
+An open ODBC Database Adapter for Zope 5, Zope 6 and Plone.
 
 ## Production Status
 
@@ -31,7 +31,7 @@ from `Products.ZSQLMethods`.
 Products.OpenODBCDA is published on PyPI and installs like a normal Python
 package.
 
-For Zope 6 or other pip-based installations:
+For Zope 6, Plone 6, or other pip-based installations:
 
 ```bash
 python -m pip install Products.OpenODBCDA
