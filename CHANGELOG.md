@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.1 - Transaction documentation clarification
+
+### Documentation
+
+- Clarified that `commit_transaction()` must follow the final Z SQL Method in
+  an explicit transaction block and that further SQL is rejected after commit
+  has been requested.
+- Added an example of `transaction_capability()` and documented its normalized
+  `supported`, `code`, and `name` fields.
+- No runtime code changes are included in this release.
+
 ## 1.1.0 - Explicit transaction support
 
 ### Added
