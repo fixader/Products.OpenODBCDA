@@ -713,6 +713,12 @@ until the surrounding Zope transaction succeeds. If the Zope request aborts
 after commit was requested, OpenODBCDA rolls the database transaction back.
 `rollback_transaction()` rolls back immediately.
 
+Do not execute more Z SQL Methods through the same connector after
+`commit_transaction()` in the current request. Place it at the successful end
+of the transaction block, as in the example above, and then finish or return
+from the script. OpenODBCDA rejects further SQL on that transaction because its
+outcome has already been decided.
+
 The methods are protected by Zope's `Use Database Methods` permission. A
 transaction that encounters a SQL error cannot subsequently commit. A lost
 connection is never retried inside a transaction because its earlier work
@@ -724,6 +730,19 @@ The adapter checks the driver's ODBC `SQL_TXN_CAPABLE` value when an explicit
 transaction begins. Drivers that report no transaction support are rejected;
 drivers that do not report a capability are allowed to try the standard
 pyodbc transaction operations.
+
+Administrators and management code can inspect the same driver information:
+
+```python
+capability = db.transaction_capability()
+print(capability["supported"], capability["code"], capability["name"])
+```
+
+`supported` is `True`, `False`, or `None` when the driver does not provide a
+usable answer. `code` is the raw ODBC capability number, and `name` is a short
+normalized description such as `all`, `dml`, or `unknown`. The method is
+protected by Zope's `View management screens` permission; ordinary application
+code does not need to call it because `begin_transaction()` performs the check.
 
 Normal DML transactions are supported by the tested database families, subject
 to the database and storage engine in use. Database-specific behavior still

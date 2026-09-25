@@ -953,6 +953,22 @@ succeeds. Zope aborts, SQL errors, and lost connections prevent commit and
 cause rollback or connection discard as appropriate. The driver is checked for
 ODBC transaction support when `begin_transaction()` is called.
 
+Call `commit_transaction()` only after the final Z SQL Method in the block.
+Further SQL through that connector is rejected for the rest of the current
+Zope transaction because commit has already been requested.
+
+An administrator can inspect what the driver reports:
+
+```python
+capability = db.transaction_capability()
+print(capability["supported"], capability["code"], capability["name"])
+```
+
+`supported` can be `True`, `False`, or `None` if the driver does not provide a
+usable answer. This diagnostic method requires Zope's
+`View management screens` permission; normal transaction code does not need to
+call it.
+
 Use this feature for DML such as `INSERT`, `UPDATE`, and `DELETE`. DDL and stored
 procedures can have database-specific commit behavior. Nested transactions and
 savepoints are not supported by this release.
