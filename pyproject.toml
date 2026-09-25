@@ -21,6 +21,7 @@ authors = [
 dependencies = [
     "Products.ZSQLMethods>=3.15",
     "pyodbc>=5.0",
+    "transaction>=3.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

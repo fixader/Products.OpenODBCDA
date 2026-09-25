@@ -922,6 +922,41 @@ Only increase pool size when one connector is expected to serve many concurrent
 requests. If an installation uses many connector objects with their own pools,
 monitor the total number of physical database sessions.
 
+## Explicit Transactions
+
+OpenODBCDA keeps autocommit enabled unless application code explicitly begins a
+transaction. A Zope Python Script can group several Z SQL Methods that use the
+same connector:
+
+```python
+db = context.my_connection
+db.begin_transaction()
+
+try:
+    context.query_1()
+    context.query_2()
+    context.query_3()
+except Exception:
+    db.rollback_transaction()
+    raise
+else:
+    db.commit_transaction()
+```
+
+The transaction reserves one connection from the connector pool until the
+surrounding Zope transaction commits or aborts. A connector with pool size 1
+can therefore run one explicit transaction at a time. Increase the pool only
+when the same connector genuinely needs concurrent transaction blocks.
+
+The physical database commit occurs when the complete Zope transaction
+succeeds. Zope aborts, SQL errors, and lost connections prevent commit and
+cause rollback or connection discard as appropriate. The driver is checked for
+ODBC transaction support when `begin_transaction()` is called.
+
+Use this feature for DML such as `INSERT`, `UPDATE`, and `DELETE`. DDL and stored
+procedures can have database-specific commit behavior. Nested transactions and
+savepoints are not supported by this release.
+
 ## Run Product Tests
 
 From the package checkout:
@@ -933,6 +968,6 @@ python -m unittest discover -s src/Products/OpenODBCDA/tests -v
 Expected result in the tested lab:
 
 ```text
-Ran 6 tests
+Ran 64 tests
 OK
 ```

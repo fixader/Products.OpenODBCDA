@@ -115,6 +115,8 @@ Products.OpenODBCDA provides:
   foreign key introspection
 - optionally use a per-connector connection pool without a global adapter-level
   pool count limit
+- optionally group several Z SQL Methods in one explicit database transaction
+  while keeping autocommit as the default
 
 ## Using The Adapter
 
@@ -679,6 +681,55 @@ VALUES (
 SELECT id, text_col, blob_col
 FROM openodbcda_lob_test;
 ```
+
+## Explicit Transactions
+
+OpenODBCDA uses ODBC autocommit by default, preserving the behavior of earlier
+versions. An application can explicitly group multiple Z SQL Methods into one
+database transaction through the connector object:
+
+```python
+db = context.my_connection
+db.begin_transaction()
+
+try:
+    context.insert_order(customer_id=customer_id)
+    context.insert_order_lines(order_id=order_id)
+    context.update_customer(customer_id=customer_id)
+except Exception:
+    db.rollback_transaction()
+    raise
+else:
+    db.commit_transaction()
+```
+
+`begin_transaction()` reserves one physical connection from that connector's
+pool for the current Zope transaction and sets pyodbc autocommit off. Every
+Z SQL Method using the same connector in that request then uses the reserved
+connection.
+
+`commit_transaction()` requests commit, but the physical ODBC commit is delayed
+until the surrounding Zope transaction succeeds. If the Zope request aborts
+after commit was requested, OpenODBCDA rolls the database transaction back.
+`rollback_transaction()` rolls back immediately.
+
+The methods are protected by Zope's `Use Database Methods` permission. A
+transaction that encounters a SQL error cannot subsequently commit. A lost
+connection is never retried inside a transaction because its earlier work
+cannot be reconstructed safely. If a transaction reaches the end of a request
+without either commit or rollback, the request fails and the database work is
+rolled back.
+
+The adapter checks the driver's ODBC `SQL_TXN_CAPABLE` value when an explicit
+transaction begins. Drivers that report no transaction support are rejected;
+drivers that do not report a capability are allowed to try the standard
+pyodbc transaction operations.
+
+Normal DML transactions are supported by the tested database families, subject
+to the database and storage engine in use. Database-specific behavior still
+applies: some DDL statements commit implicitly, non-transactional MariaDB/MySQL
+table engines cannot roll back, and a stored procedure may commit internally.
+Nested transactions and savepoints are not part of this API.
 
 ## Diagnostics And Pooling
 

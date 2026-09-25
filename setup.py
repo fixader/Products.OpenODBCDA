@@ -63,5 +63,6 @@ setup(
     install_requires=[
         "Products.ZSQLMethods>=3.15",
         "pyodbc>=5.0",
+        "transaction>=3.0",
     ],
 )

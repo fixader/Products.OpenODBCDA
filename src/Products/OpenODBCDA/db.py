@@ -13,7 +13,10 @@ from datetime import time
 from threading import Condition
 
 import pyodbc
+import transaction
 from DateTime.DateTime import DateTime as ZopeDateTime
+from transaction.interfaces import IDataManager
+from zope.interface import implementer
 
 from .types import zrdb_type_for_column
 
@@ -26,6 +29,66 @@ class ResultOptions:
     time_as_string: bool = False
     leave_scale0_floats_untouched: bool = True
     date_time_format: str = "python"
+
+
+class OpenODBCTransactionError(RuntimeError):
+    """Base error for explicit OpenODBCDA transaction handling."""
+
+
+class TransactionAlreadyActiveError(OpenODBCTransactionError):
+    """Raised when the current Zope transaction already owns a session."""
+
+
+class NoActiveTransactionError(OpenODBCTransactionError):
+    """Raised when no explicit transaction exists for the current request."""
+
+
+class TransactionFailedError(OpenODBCTransactionError):
+    """Raised when SQL failed and the transaction can no longer commit."""
+
+
+class TransactionsNotSupportedError(OpenODBCTransactionError):
+    """Raised when an ODBC driver reports no transaction support."""
+
+
+@dataclass
+class _TransactionSession:
+    """One physical ODBC connection pinned to one Zope transaction."""
+
+    zope_transaction: object
+    connection: object
+    state: str = "active"
+    failed: bool = False
+    discard: bool = False
+
+
+@implementer(IDataManager)
+class _ODBCTransactionDataManager:
+    """Bridge an explicit ODBC transaction into Zope's transaction manager."""
+
+    def __init__(self, database, session):
+        self.database = database
+        self.session = session
+
+    def abort(self, transaction):
+        self.database._abort_transaction_session(self.session)
+
+    tpc_abort = abort
+
+    def tpc_begin(self, transaction):
+        pass
+
+    def commit(self, transaction):
+        pass
+
+    def tpc_vote(self, transaction):
+        self.database._vote_transaction_session(self.session)
+
+    def tpc_finish(self, transaction):
+        self.database._finish_transaction_session(self.session)
+
+    def sortKey(self):
+        return "Products.OpenODBCDA:%020d" % id(self.session)
 
 
 class OpenODBCDatabaseConnection:
@@ -48,6 +111,7 @@ class OpenODBCDatabaseConnection:
         self._idle = []
         self._opened = 0
         self._closed = False
+        self._transactions = {}
         self._idle.append(self._connect())
         self._opened = 1
 
@@ -77,6 +141,26 @@ class OpenODBCDatabaseConnection:
             self._release(connection)
 
     def query(self, sql, max_rows=999999):
+        session = self._current_transaction_session()
+        if session is not None:
+            if session.state != "active":
+                raise OpenODBCTransactionError(
+                    "This transaction has already requested commit; "
+                    "no more SQL can be executed in it."
+                )
+            try:
+                return _query(
+                    session.connection,
+                    sql,
+                    max_rows=max_rows,
+                    result_options=self.result_options,
+                )
+            except Exception as exc:
+                session.failed = True
+                if isinstance(exc, pyodbc.Error) and _is_connection_lost_error(exc):
+                    session.discard = True
+                raise
+
         for attempt in range(2):
             connection = self._acquire()
             discard = False
@@ -94,6 +178,163 @@ class OpenODBCDatabaseConnection:
                 raise
             finally:
                 self._release(connection, discard=discard)
+
+    def transaction_capability(self):
+        """Return the transaction capability reported by the ODBC driver."""
+        connection = self._acquire()
+        try:
+            return _transaction_capability(connection)
+        finally:
+            self._release(connection)
+
+    def begin_transaction(self):
+        """Pin one pooled connection to the current Zope transaction."""
+        zope_transaction = transaction.manager.get()
+        with self._condition:
+            if zope_transaction in self._transactions:
+                raise TransactionAlreadyActiveError(
+                    "An explicit OpenODBCDA transaction is already active "
+                    "for this connector in the current request."
+                )
+
+        connection = self._acquire()
+        discard = False
+        transaction_started = False
+        try:
+            capability = _transaction_capability(connection)
+            if capability["supported"] is False:
+                raise TransactionsNotSupportedError(
+                    "The ODBC driver reports that transactions are not supported."
+                )
+            connection.autocommit = False
+            transaction_started = True
+            session = _TransactionSession(zope_transaction, connection)
+            data_manager = _ODBCTransactionDataManager(self, session)
+            with self._condition:
+                if self._closed:
+                    raise RuntimeError("ODBC connection pool is closed")
+                self._transactions[zope_transaction] = session
+            try:
+                zope_transaction.join(data_manager)
+            except Exception:
+                with self._condition:
+                    self._transactions.pop(zope_transaction, None)
+                raise
+        except Exception:
+            if transaction_started:
+                try:
+                    connection.rollback()
+                    connection.autocommit = True
+                except Exception:
+                    discard = True
+            self._release(connection, discard=discard)
+            raise
+        return True
+
+    def commit_transaction(self):
+        """Request commit when the surrounding Zope transaction succeeds."""
+        session = self._require_transaction_session()
+        if session.state != "active":
+            raise OpenODBCTransactionError(
+                "Commit has already been requested for this transaction."
+            )
+        if session.failed:
+            try:
+                self._abort_transaction_session(session)
+            except Exception as exc:
+                raise TransactionFailedError(
+                    "The transaction contains a failed SQL operation; rollback "
+                    "also failed and the physical connection was discarded."
+                ) from exc
+            else:
+                raise TransactionFailedError(
+                    "The transaction contains a failed SQL operation and was "
+                    "rolled back."
+                )
+        session.state = "commit_requested"
+        return True
+
+    def rollback_transaction(self):
+        """Roll back the explicit transaction and release its connection."""
+        session = self._require_transaction_session()
+        self._abort_transaction_session(session)
+        return True
+
+    def active_transaction_count(self):
+        with self._condition:
+            return len(self._transactions)
+
+    def _current_transaction_session(self):
+        zope_transaction = transaction.manager.get()
+        with self._condition:
+            return self._transactions.get(zope_transaction)
+
+    def _require_transaction_session(self):
+        session = self._current_transaction_session()
+        if session is None:
+            raise NoActiveTransactionError(
+                "No explicit OpenODBCDA transaction is active for this "
+                "connector in the current request."
+            )
+        return session
+
+    def _vote_transaction_session(self, session):
+        if session.state in ("finished", "aborted"):
+            return
+        if session.failed:
+            raise TransactionFailedError(
+                "The OpenODBCDA transaction contains a failed SQL operation."
+            )
+        if session.state != "commit_requested":
+            raise OpenODBCTransactionError(
+                "The OpenODBCDA transaction reached the end of the request "
+                "without commit_transaction() or rollback_transaction()."
+            )
+
+    def _finish_transaction_session(self, session):
+        if session.state in ("finished", "aborted"):
+            return
+        discard = session.discard
+        try:
+            session.connection.commit()
+        except Exception:
+            discard = True
+            raise
+        finally:
+            self._complete_transaction_session(
+                session,
+                state="finished",
+                discard=discard,
+            )
+
+    def _abort_transaction_session(self, session):
+        if session.state in ("finished", "aborted"):
+            return
+        discard = session.discard
+        try:
+            session.connection.rollback()
+        except Exception:
+            discard = True
+            raise
+        finally:
+            self._complete_transaction_session(
+                session,
+                state="aborted",
+                discard=discard,
+            )
+
+    def _complete_transaction_session(self, session, state, discard=False):
+        session.state = state
+        with self._condition:
+            current = self._transactions.get(session.zope_transaction)
+            if current is session:
+                self._transactions.pop(session.zope_transaction, None)
+        if not discard:
+            try:
+                session.connection.autocommit = True
+            except Exception:
+                discard = True
+        self._release(session.connection, discard=discard)
 
     def tables(self, schema=None, table=None, table_type=None):
         connection = self._acquire()
@@ -298,6 +539,29 @@ def normalize_pool_size(pool_size):
     except (TypeError, ValueError):
         pool_size = 1
     return max(pool_size, 1)
+
+
+def _transaction_capability(connection):
+    names = {
+        0: "none",
+        1: "dml",
+        2: "all",
+        3: "ddl_commits",
+        4: "ddl_ignored",
+    }
+    try:
+        code = int(connection.getinfo(pyodbc.SQL_TXN_CAPABLE))
+    except (AttributeError, TypeError, ValueError, pyodbc.Error):
+        return {
+            "supported": None,
+            "code": None,
+            "name": "unknown",
+        }
+    return {
+        "supported": code != 0,
+        "code": code,
+        "name": names.get(code, "driver_specific"),
+    }
 
 
 def _connection_info(connection):

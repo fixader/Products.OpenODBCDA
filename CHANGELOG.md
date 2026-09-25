@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.1.0 - Explicit transaction support
+
+### Added
+
+- Added request-local `begin_transaction()`, `commit_transaction()`, and
+  `rollback_transaction()` methods on OpenODBC connector objects.
+- Explicit transactions pin one physical ODBC connection so multiple Z SQL
+  Methods use the same database transaction.
+- Commit is coordinated with Zope's transaction manager and occurs only when
+  the surrounding Zope transaction completes successfully.
+- Added ODBC transaction-capability reporting and a clear error when a driver
+  explicitly reports that transactions are unsupported.
+- Added automatic rollback when the Zope request aborts, commit protection
+  after a failed SQL operation, and connection discard after communication
+  loss inside a transaction.
+- Added unit coverage for commit, rollback, forgotten completion, SQL errors,
+  lost connections, unsupported drivers, nesting, pooling, and connector
+  delegation.
+
+### Compatibility
+
+- Existing queries remain in autocommit mode unless
+  `begin_transaction()` is called explicitly.
+- Nested transactions and savepoints are not included in this release.
+
 ## 1.0.2 - Plone package metadata
 
 ### Documentation

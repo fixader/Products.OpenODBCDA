@@ -98,6 +98,13 @@ Developed in collaboration with ChatGPT/Codex.
         </td>
       </tr>
       <tr>
+        <th>Explicit transactions</th>
+        <td>
+          Autocommit by default; <dtml-var active_transaction_count>
+          currently active
+        </td>
+      </tr>
+      <tr>
         <th>Compatibility result options</th>
         <td>
           <ul class="mb-0">

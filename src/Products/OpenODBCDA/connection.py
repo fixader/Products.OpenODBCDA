@@ -9,6 +9,7 @@
 from AccessControl.class_init import InitializeClass
 from AccessControl.Permissions import change_database_connections
 from AccessControl.Permissions import test_database_connections
+from AccessControl.Permissions import use_database_methods
 from AccessControl.Permissions import view_management_screens
 from AccessControl.SecurityInfo import ClassSecurityInfo
 from App.special_dtml import DTMLFile
@@ -385,6 +386,34 @@ class OpenODBCConnection(Connection):
         if connection is None:
             return 0
         return connection.in_use_pool_size()
+
+    security.declareProtected(use_database_methods, "begin_transaction")
+    def begin_transaction(self):
+        """Begin an explicit transaction for the current Zope request."""
+        return self._database_connection().begin_transaction()
+
+    security.declareProtected(use_database_methods, "commit_transaction")
+    def commit_transaction(self):
+        """Commit if the surrounding Zope transaction completes successfully."""
+        return self._database_connection().commit_transaction()
+
+    security.declareProtected(use_database_methods, "rollback_transaction")
+    def rollback_transaction(self):
+        """Roll back the explicit transaction for the current Zope request."""
+        return self._database_connection().rollback_transaction()
+
+    security.declareProtected(view_management_screens, "transaction_capability")
+    def transaction_capability(self):
+        """Return transaction support reported by the ODBC driver."""
+        return self._database_connection().transaction_capability()
+
+    security.declareProtected(view_management_screens, "active_transaction_count")
+    def active_transaction_count(self):
+        """Return the number of physical connections pinned by transactions."""
+        connection = getattr(self, "_v_database_connection", None)
+        if connection is None:
+            return 0
+        return connection.active_transaction_count()
 
     security.declareProtected(view_management_screens, "tables")
     def tables(self, schema=None, table=None, table_type=None):
